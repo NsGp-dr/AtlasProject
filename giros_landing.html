@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #020609;
+    --bg2: #040c12;
+    --c1: #00c8e0;
+    --c2: #39ff84;
+    --c3: #ff5e1a;
+    --c4: #b06aff;
+    --dim: #0e2030;
+    --muted: #2a4a5e;
+    --text: #6aa0b8;
+    --bright: #c8e8f5;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── grid overlay ── */
+  body::after {
+    content:'';
+    position:fixed;inset:0;
+    background-image:
+      linear-gradient(rgba(0,200,224,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,224,0.025) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* ── scanlines ── */
+  body::before {
+    content:'';
+    position:fixed;inset:0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,200,224,0.008) 3px,
+      rgba(0,200,224,0.008) 4px
+    );
+    pointer-events:none;
+    z-index:1;
+  }
+
+  .page { position:relative; z-index:2; }
+
+  /* ── NAV ── */
+  nav {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--dim);
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 800; letter-spacing: 6px;
+    color: var(--c1);
+  }
+  .nav-logo span { color: var(--muted); font-weight: 400; }
+  .nav-right {
+    display:flex; gap:20px; align-items:center;
+    font-size: 8px; letter-spacing: 2px; color: var(--muted);
+  }
+  .nav-right a { color: var(--muted); text-decoration:none; transition: color 0.2s; cursor:pointer; }
+  .nav-right a:hover { color: var(--c1); }
+  .nav-pill {
+    border: 1px solid var(--c2);
+    color: var(--c2);
+    padding: 4px 12px;
+    font-size: 8px; letter-spacing: 2px;
+    cursor:pointer;
+    transition: all 0.2s;
+  }
+  .nav-pill:hover { background: var(--c2); color: var(--bg); }
+
+  /* ── HERO ── */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 86vh;
+    align-items: center;
+    padding: 0 40px;
+    gap: 40px;
+  }
+
+  .hero-left { padding-right: 20px; }
+
+  .hero-eyebrow {
+    font-size: 8px; letter-spacing: 4px; color: var(--muted);
+    text-transform: uppercase; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .hero-eyebrow::before {
+    content:'';
+    display:inline-block; width:20px; height:1px;
+    background: var(--c1);
+  }
+
+  .hero-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(52px, 8vw, 88px);
+    font-weight: 800;
+    line-height: 0.92;
+    letter-spacing: -2px;
+    color: var(--bright);
+    margin-bottom: 24px;
+  }
+  .hero-title .accent { color: var(--c1); }
+  .hero-title .accent2 { color: var(--c4); }
+
+  .hero-desc {
+    font-size: 11px; line-height: 2;
+    color: var(--text); max-width: 420px;
+    margin-bottom: 36px;
+    letter-spacing: 0.3px;
+  }
+  .hero-desc strong { color: var(--bright); font-weight: 500; }
+
+  .hero-cta {
+    display:flex; gap:12px; align-items:center;
+  }
+  .btn-launch {
+    background: var(--c1);
+    color: var(--bg);
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 3px;
+    padding: 13px 28px;
+    cursor:pointer;
+    transition: all 0.18s;
+    text-decoration: none;
+    display:inline-block;
+  }
+  .btn-launch:hover { background: var(--bright); }
+  .btn-sec {
+    background: none;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 12px 22px;
+    cursor:pointer;
+    transition: all 0.18s;
+    text-decoration:none;
+    display:inline-block;
+  }
+  .btn-sec:hover { border-color: var(--c1); color: var(--c1); }
+
+  /* ── GYROSCOPE VISUAL ── */
+  .hero-right {
+    display:flex; align-items:center; justify-content:center;
+    position:relative; height: 480px;
+  }
+  .gyro-wrap {
+    position:relative; width:380px; height:380px;
+  }
+
+  /* Rings */
+  .ring {
+    position:absolute;
+    border-radius:50%;
+    border: 1px solid;
+    top:50%; left:50%;
+    transform-origin: center;
+  }
+  .ring-1 { width:320px; height:320px; margin:-160px 0 0 -160px; border-color: rgba(0,200,224,0.4); animation: spin1 14s linear infinite; }
+  .ring-2 { width:260px; height:260px; margin:-130px 0 0 -130px; border-color: rgba(176,106,255,0.35); animation: spin2 10s linear infinite; transform: rotateX(72deg); }
+  .ring-3 { width:200px; height:200px; margin:-100px 0 0 -100px; border-color: rgba(57,255,132,0.3); animation: spin3 7s linear infinite; transform: rotateY(58deg); }
+  .ring-4 { width:150px; height:150px; margin:-75px 0 0 -75px; border-color: rgba(255,230,80,0.2); animation: spin4 4s linear infinite; }
+
+  /* Dots on rings */
+  .ring::after {
+    content:'';
+    position:absolute;
+    width:6px; height:6px; border-radius:50%;
+    top:-3px; left:50%; margin-left:-3px;
+  }
+  .ring-1::after { background: var(--c1); box-shadow: 0 0 10px var(--c1); }
+  .ring-2::after { background: var(--c4); box-shadow: 0 0 10px var(--c4); }
+  .ring-3::after { background: var(--c2); box-shadow: 0 0 8px var(--c2); }
+
+  @keyframes spin1 { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes spin2 { from{transform:rotateX(72deg) rotate(0deg)} to{transform:rotateX(72deg) rotate(360deg)} }
+  @keyframes spin3 { from{transform:rotateY(58deg) rotate(0deg)} to{transform:rotateY(58deg) rotate(-360deg)} }
+  @keyframes spin4 { from{transform:rotateX(30deg) rotateY(20deg) rotate(0deg)} to{transform:rotateX(30deg) rotateY(20deg) rotate(360deg)} }
+
+  /* Core sphere */
+  .gyro-core {
+    position:absolute; top:50%; left:50%;
+    width:80px; height:80px; margin:-40px 0 0 -40px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, #1a5588, #051828);
+    border: 1px solid rgba(0,200,224,0.3);
+    box-shadow: 0 0 30px rgba(0,200,224,0.12), inset 0 0 20px rgba(0,200,224,0.05);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{box-shadow: 0 0 30px rgba(0,200,224,0.12)} 50%{box-shadow: 0 0 50px rgba(0,200,224,0.22)} }
+
+  /* Particles */
+  .particle {
+    position:absolute;
+    border-radius:50%;
+    background: var(--c1);
+    opacity: 0.4;
+    animation: drift 6s ease-in-out infinite;
+  }
+  .p1 { width:3px;height:3px; top:18%; left:22%; animation-delay:0s; }
+  .p2 { width:2px;height:2px; top:72%; left:78%; animation-delay:1.4s; }
+  .p3 { width:3px;height:3px; top:62%; left:15%; color:var(--c4); background:var(--c4); animation-delay:0.8s; }
+  .p4 { width:2px;height:2px; top:28%; left:82%; color:var(--c2); background:var(--c2); animation-delay:2.1s; }
+  .p5 { width:2px;height:2px; top:48%; left:92%; animation-delay:3s; }
+  @keyframes drift { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+  /* Side stat cards */
+  .gyro-stats {
+    position:absolute; right:-80px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .gstat {
+    background: var(--bg2);
+    border: 1px solid var(--dim);
+    padding: 7px 10px;
+    width: 90px;
+  }
+  .gstat-label { font-size:7px; letter-spacing:2px; color:var(--muted); margin-bottom:2px; }
+  .gstat-val { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; }
+  .gstat-val.c1 { color:var(--c1); }
+  .gstat-val.c2 { color:var(--c2); }
+  .gstat-val.c3 { color:var(--c3); }
+  .gstat-val.c4 { color:var(--c4); }
+
+  /* ── STRIP: key facts ── */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--dim);
+    border-bottom: 1px solid var(--dim);
+    margin: 0 40px;
+  }
+  .strip-item {
+    padding: 20px 24px;
+    border-right: 1px solid var(--dim);
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .strip-item:last-child { border-right:none; }
+  .strip-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px; font-weight: 800; line-height:1;
+    color: var(--bright);
+  }
+  .strip-unit { font-size:9px; color:var(--c1); letter-spacing:2px; margin-left:4px; }
+  .strip-label { font-size:8px; color:var(--muted); letter-spacing:2px; margin-top:2px; }
+
+  /* ── METHOD SECTION ── */
+  .method {
+    padding: 60px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: start;
+  }
+  .method-left { }
+  .section-eyebrow {
+    font-size: 8px; letter-spacing: 4px; color: var(--muted);
+    display:flex; align-items:center; gap:8px; margin-bottom:12px;
+  }
+  .section-eyebrow::before { content:''; width:14px; height:1px; background:var(--c4); }
+  .method-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 32px; font-weight: 800; line-height:1.1;
+    color: var(--bright); margin-bottom:16px;
+  }
+  .method-body { font-size:10px; line-height:2; color:var(--text); }
+  .method-body strong { color:var(--bright); font-weight:500; }
+
+  .method-steps { display:flex; flex-direction:column; gap:2px; }
+  .step {
+    display:flex; align-items:flex-start; gap:14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--dim);
+  }
+  .step:last-child { border-bottom:none; }
+  .step-num {
+    font-family:'Syne',sans-serif;
+    font-size:11px; font-weight:800; letter-spacing:1px;
+    color:var(--dim); flex-shrink:0; width:28px; margin-top:2px;
+  }
+  .step-content { flex:1; }
+  .step-title { font-size:10px; font-weight:600; color:var(--bright); letter-spacing:1px; margin-bottom:3px; }
+  .step-desc { font-size:9px; color:var(--text); line-height:1.8; }
+  .step-tag {
+    display:inline-block; margin-top:4px;
+    font-size:7px; letter-spacing:2px; padding:2px 7px;
+    border: 1px solid; border-radius:1px;
+  }
+  .tag-c1 { border-color:var(--c1); color:var(--c1); }
+  .tag-c4 { border-color:var(--c4); color:var(--c4); }
+  .tag-c2 { border-color:var(--c2); color:var(--c2); }
+  .tag-c3 { border-color:var(--c3); color:var(--c3); }
+
+  /* ── VISUAL EXPLAINER ── */
+  .explainer {
+    margin: 0 40px 60px;
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:1px;
+    background: var(--dim);
+    border: 1px solid var(--dim);
+  }
+  .excard {
+    background: var(--bg2);
+    padding: 24px 22px;
+    position:relative; overflow:hidden;
+  }
+  .excard::after {
+    content:'';
+    position:absolute; bottom:0; left:0;
+    width:100%; height:2px;
+    transition: opacity 0.3s;
+    opacity: 0.5;
+  }
+  .excard.ec1::after { background: var(--c1); }
+  .excard.ec2::after { background: var(--c4); }
+  .excard.ec3::after { background: var(--c2); }
+
+  .excard-icon {
+    font-size: 9px; letter-spacing:3px; color:var(--muted);
+    margin-bottom:12px;
+  }
+  .excard-title {
+    font-family:'Syne',sans-serif;
+    font-size:16px; font-weight:800;
+    color:var(--bright); margin-bottom:8px; line-height:1.2;
+  }
+  .excard-body { font-size:9px; line-height:1.9; color:var(--text); }
+
+  /* λ display in excard */
+  .lambda-row {
+    display:flex; align-items:center; gap:8px; margin-top:12px;
+  }
+  .lambda-label { font-size:13px; font-family:'Syne',sans-serif; font-weight:700; width:22px; }
+  .lambda-track { flex:1; height:3px; background:var(--dim); border-radius:1px; }
+  .lambda-fill { height:100%; border-radius:1px; }
+
+  /* ── RISK DISPLAY ── */
+  .risk-preview {
+    margin: 0 40px 60px;
+    background: var(--bg2);
+    border: 1px solid var(--dim);
+    display:grid; grid-template-columns: 1fr 1fr;
+    overflow:hidden;
+  }
+  .rp-left { padding:32px 36px; border-right:1px solid var(--dim); }
+  .rp-right { padding:32px 36px; }
+  .rp-eyebrow { font-size:8px; letter-spacing:3px; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .rp-eyebrow::before { content:''; width:12px; height:1px; background:var(--c3); }
+  .rp-num {
+    font-family:'Syne',sans-serif; font-size:80px; font-weight:800;
+    line-height:0.9; color:var(--c3);
+    text-shadow: 0 0 40px rgba(255,94,26,0.25);
+    margin-bottom:4px;
+  }
+  .rp-label { font-size:10px; letter-spacing:3px; color:var(--bright); margin-bottom:12px; }
+  .rp-bars { display:flex; flex-direction:column; gap:6px; }
+  .rp-bar-row { display:flex; align-items:center; gap:8px; font-size:8px; }
+  .rp-bar-label { color:var(--muted); width:54px; letter-spacing:1px; }
+  .rp-bar-track { flex:1; height:3px; background:var(--dim); border-radius:1px; }
+  .rp-bar-fill { height:100%; border-radius:1px; }
+  .rp-bar-val { color:var(--bright); width:30px; text-align:right; font-size:9px; }
+
+  /* Inference lines */
+  .inference-lines { display:flex; flex-direction:column; gap:10px; }
+  .inf-line {
+    display:flex; align-items:flex-start; gap:10px;
+    padding-bottom:10px; border-bottom:1px solid var(--dim);
+  }
+  .inf-line:last-child { border-bottom:none; }
+  .inf-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+  .inf-text { font-size:9px; line-height:1.8; color:var(--text); }
+  .inf-text strong { color:var(--bright); font-weight:500; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top:1px solid var(--dim);
+    padding: 24px 40px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .footer-left { font-size:8px; letter-spacing:2px; color:var(--muted); }
+  .footer-brand {
+    font-family:'Syne',sans-serif;
+    font-size:12px; font-weight:800; letter-spacing:5px; color:var(--dim);
+  }
+  .footer-right { font-size:8px; letter-spacing:2px; color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">GIROS <span>· NsGp</span></div>
+  <div class="nav-right">
+    <a>Método</a>
+    <a>Datos</a>
+    <a>Atlas Project</a>
+    <a class="nav-pill" href="Giros.html">LANZAR APP</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">MOD_01 · ATLAS PROJECT</div>
+    <h1 class="hero-title">
+      <span class="accent">GIROS</span><br>
+      <span class="accent2">RHY</span>THM
+    </h1>
+    <p class="hero-desc">
+      Un <strong>giroscopio meteorológico bayesiano</strong> que descompone
+      el clima en sus componentes propias — autovalores de correlación
+      entre temperatura, humedad, presión, viento y nubosidad.
+      <br><br>
+      Cuando el sistema gira ordenado, el tiempo es estable.
+      Cuando los ejes divergen, <strong>va a llover</strong>.
+    </p>
+    <div class="hero-cta">
+      <a class="btn-launch" href="Giros.html">LANZAR GIROS →</a>
+      <a class="btn-sec" href="index.html">← ATLAS</a>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="gyro-wrap">
+      <div class="ring ring-1"></div>
+      <div class="ring ring-2"></div>
+      <div class="ring ring-3"></div>
+      <div class="ring ring-4"></div>
+      <div class="gyro-core"></div>
+      <div class="particle p1"></div>
+      <div class="particle p2"></div>
+      <div class="particle p3"></div>
+      <div class="particle p4"></div>
+      <div class="particle p5"></div>
+
+      <div class="gyro-stats">
+        <div class="gstat">
+          <div class="gstat-label">λ₁</div>
+          <div class="gstat-val c1" id="s1">0.712</div>
+        </div>
+        <div class="gstat">
+          <div class="gstat-label">λ₂</div>
+          <div class="gstat-val c4" id="s2">0.201</div>
+        </div>
+        <div class="gstat">
+          <div class="gstat-label">RIESGO</div>
+          <div class="gstat-val c3" id="s3">34%</div>
+        </div>
+        <div class="gstat">
+          <div class="gstat-label">RÉGIMEN</div>
+          <div class="gstat-val c2" style="font-size:10px" id="s4">ESTABLE</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STRIP -->
+<div class="strip">
+  <div class="strip-item">
+    <div><span class="strip-num">6</span><span class="strip-unit">DIM</span></div>
+    <div class="strip-label">VARIABLES CLIMÁTICAS</div>
+  </div>
+  <div class="strip-item">
+    <div><span class="strip-num">3</span><span class="strip-unit">λ</span></div>
+    <div class="strip-label">AUTOVALORES ACTIVOS</div>
+  </div>
+  <div class="strip-item">
+    <div><span class="strip-num">48</span><span class="strip-unit">H</span></div>
+    <div class="strip-label">HORIZONTE FORECAST</div>
+  </div>
+  <div class="strip-item">
+    <div><span class="strip-num">β</span><span class="strip-unit"></span></div>
+    <div class="strip-label">ACTUALIZACIÓN BAYESIANA</div>
+  </div>
+</div>
+
+<!-- METHOD -->
+<section class="method">
+  <div class="method-left">
+    <div class="section-eyebrow">METODOLOGÍA</div>
+    <h2 class="method-title">Geometría<br>del clima</h2>
+    <p class="method-body">
+      El clima no es un número — es un <strong>punto en un espacio de seis dimensiones</strong>.
+      GIROS construye la matriz de correlación de ese espacio en cada ventana de tiempo,
+      extrae sus componentes principales y usa los autovalores resultantes para
+      leer la <strong>coherencia estructural del sistema</strong>.
+      <br><br>
+      Una <strong>distribución Beta conjugada</strong> absorbe cada observación y devuelve
+      la probabilidad posterior de lluvia de forma continua, sin umbrales arbitrarios.
+    </p>
+  </div>
+  <div class="method-steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-content">
+        <div class="step-title">DATOS · OPEN-METEO</div>
+        <div class="step-desc">API libre. 48h de pronóstico a resolución horaria. Suavizados con KNN lineal × 6 pasos por hora → simulación de 10 minutos reales.</div>
+        <span class="step-tag tag-c1">OPEN-METEO API</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-content">
+        <div class="step-title">PCA DESLIZANTE · R⁶ → λ</div>
+        <div class="step-desc">Ventana de 12 pasos. Matriz de correlación 6×6. Power iteration extrae λ₁, λ₂, λ₃. La varianza explicada es la coherencia del sistema.</div>
+        <span class="step-tag tag-c4">POWER ITERATION</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-content">
+        <div class="step-title">ACTUALIZACIÓN BAYESIANA</div>
+        <div class="step-desc">Prior Beta(1,1). Verosimilitud compuesta: nubes, humedad, λ₁. La posterior p(lluvia|datos) converge suavemente con cada observación.</div>
+        <span class="step-tag tag-c2">BETA CONJUGADA</span>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-content">
+        <div class="step-title">RÉGIMEN · INFERENCIA CONTINUA</div>
+        <div class="step-desc">Δλ₁ > 0.10 → transición. λ₁ > 0.70 → coherente. λ₁ < 0.40 → caótico. La esfera 3D deforma sus ejes según los autovalores activos.</div>
+        <span class="step-tag tag-c3">DETECCIÓN DE RÉGIMEN</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EXPLAINER CARDS -->
+<div class="explainer">
+  <div class="excard ec1">
+    <div class="excard-icon">AUTOVALORES</div>
+    <div class="excard-title">La forma del clima</div>
+    <div class="excard-body">Los autovalores revelan cuánta energía climática está concentrada en una dirección. Un λ₁ alto significa que las variables se mueven juntas: el sistema es coherente y predecible.</div>
+    <div class="lambda-row">
+      <div class="lambda-label" style="color:var(--c1)">λ₁</div>
+      <div class="lambda-track"><div class="lambda-fill" style="width:72%;background:var(--c1)"></div></div>
+      <span style="font-size:9px;color:var(--c1);margin-left:6px">0.72</span>
+    </div>
+    <div class="lambda-row">
+      <div class="lambda-label" style="color:var(--c4)">λ₂</div>
+      <div class="lambda-track"><div class="lambda-fill" style="width:19%;background:var(--c4)"></div></div>
+      <span style="font-size:9px;color:var(--c4);margin-left:6px">0.19</span>
+    </div>
+    <div class="lambda-row">
+      <div class="lambda-label" style="color:var(--c2)">λ₃</div>
+      <div class="lambda-track"><div class="lambda-fill" style="width:9%;background:var(--c2)"></div></div>
+      <span style="font-size:9px;color:var(--c2);margin-left:6px">0.09</span>
+    </div>
+  </div>
+  <div class="excard ec2">
+    <div class="excard-icon">RÉGIMEN</div>
+    <div class="excard-title">Cuatro estados del sistema</div>
+    <div class="excard-body">
+      Cada régimen tiene una firma eigenvalue distinta. La transición entre estados es el momento de mayor incertidumbre — y mayor riesgo de precipitación.
+    </div>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;font-size:8px;padding:5px 8px;border-left:2px solid var(--c2)"><span style="color:var(--muted)">COHERENTE</span><span style="color:var(--c2)">λ₁ > 0.70</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;padding:5px 8px;border-left:2px solid var(--c1)"><span style="color:var(--muted)">ESTABLE</span><span style="color:var(--c1)">0.40–0.70</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;padding:5px 8px;border-left:2px solid var(--c3)"><span style="color:var(--muted)">TRANSICIÓN</span><span style="color:var(--c3)">Δλ₁ > 0.10</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;padding:5px 8px;border-left:2px solid #ff3b3b"><span style="color:var(--muted)">CAÓTICO</span><span style="color:#ff3b3b">λ₁ < 0.40</span></div>
+    </div>
+  </div>
+  <div class="excard ec3">
+    <div class="excard-icon">SONIFICACIÓN</div>
+    <div class="excard-title">El clima como música</div>
+    <div class="excard-body">
+      La presión barométrica controla el tono de fondo. La lluvia modula la frecuencia principal. El viento introduce ruido blanco. Cuando el sistema colapsa en lluvia, el timbre se satura.
+    </div>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:5px">
+      <div style="font-size:8px;color:var(--muted);letter-spacing:1px;display:flex;justify-content:space-between"><span>OSCILADOR PITCH</span><span style="color:var(--text)">lluvia → Hz</span></div>
+      <div style="font-size:8px;color:var(--muted);letter-spacing:1px;display:flex;justify-content:space-between"><span>DRONE BASE</span><span style="color:var(--text)">presión → f₀</span></div>
+      <div style="font-size:8px;color:var(--muted);letter-spacing:1px;display:flex;justify-content:space-between"><span>RUIDO BLANCO</span><span style="color:var(--text)">viento → amp</span></div>
+      <div style="font-size:8px;color:var(--muted);letter-spacing:1px;display:flex;justify-content:space-between"><span>MASTER GAIN</span><span style="color:var(--text)">riesgo → vol</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- RISK PREVIEW -->
+<div class="risk-preview">
+  <div class="rp-left">
+    <div class="rp-eyebrow">RIESGO INSTANTÁNEO</div>
+    <div class="rp-num" id="rp-num">68%</div>
+    <div class="rp-label" id="rp-label">POSIBLE LLUVIA</div>
+    <div class="rp-bars">
+      <div class="rp-bar-row">
+        <div class="rp-bar-label">NUBES</div>
+        <div class="rp-bar-track"><div class="rp-bar-fill" id="b-clouds" style="width:82%;background:var(--muted)"></div></div>
+        <div class="rp-bar-val">82%</div>
+      </div>
+      <div class="rp-bar-row">
+        <div class="rp-bar-label">HUMEDAD</div>
+        <div class="rp-bar-track"><div class="rp-bar-fill" id="b-hum" style="width:76%;background:var(--c1)"></div></div>
+        <div class="rp-bar-val">76%</div>
+      </div>
+      <div class="rp-bar-row">
+        <div class="rp-bar-label">λ₁</div>
+        <div class="rp-bar-track"><div class="rp-bar-fill" id="b-l1" style="width:64%;background:var(--c4)"></div></div>
+        <div class="rp-bar-val">0.64</div>
+      </div>
+      <div class="rp-bar-row">
+        <div class="rp-bar-label">POSTERIOR</div>
+        <div class="rp-bar-track"><div class="rp-bar-fill" id="b-post" style="width:71%;background:var(--c3)"></div></div>
+        <div class="rp-bar-val">71%</div>
+      </div>
+    </div>
+  </div>
+  <div class="rp-right">
+    <div class="rp-eyebrow" style="--c:var(--c4)">INFERENCIA AUTOMÁTICA</div>
+    <div class="inference-lines">
+      <div class="inf-line">
+        <div class="inf-dot" style="background:var(--c3)"></div>
+        <div class="inf-text"><strong>Alta probabilidad de precipitación</strong> — riesgo inst. 68%, posterior bayesiana 71%.</div>
+      </div>
+      <div class="inf-line">
+        <div class="inf-dot" style="background:var(--c4)"></div>
+        <div class="inf-text"><strong>λ₁ moderado (0.64)</strong> — coherencia climática media. Las variables divergen levemente.</div>
+      </div>
+      <div class="inf-line">
+        <div class="inf-dot" style="background:var(--c1)"></div>
+        <div class="inf-text"><strong>Presión descendente</strong> — frente activo posible. Condición necesaria para lluvia parcialmente cumplida.</div>
+      </div>
+      <div class="inf-line">
+        <div class="inf-dot" style="background:var(--c2)"></div>
+        <div class="inf-text">Régimen en <strong>transición</strong> — Δλ₁ elevado. Cambio estructural inminente en las próximas 2h.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">ATLAS PROJECT · MOD_01 · GIROS RHYTHM</div>
+  <div class="footer-brand">NsGp-dr</div>
+  <div class="footer-right">GITHUB PAGES · HARMONIC WEB</div>
+</footer>
+
+</div><!-- /page -->
+
+<script>
+// Animate the stat values to look live
+const regimes = ['ESTABLE','COHERENTE','TRANSICIÓN','CAÓTICO'];
+const regColors = ['var(--c2)','var(--c1)','var(--c3)','#ff3b3b'];
+let tick = 0;
+
+setInterval(() => {
+  tick++;
+  const l1 = (0.45 + Math.sin(tick * 0.07) * 0.25).toFixed(3);
+  const l2 = (0.20 + Math.sin(tick * 0.11 + 1) * 0.10).toFixed(3);
+  const risk = Math.round(30 + Math.sin(tick * 0.09 + 0.5) * 28);
+  const isHigh = risk > 48;
+  const regIdx = risk > 60 ? 2 : parseFloat(l1) > 0.65 ? 1 : 0;
+
+  document.getElementById('s1').textContent = l1;
+  document.getElementById('s2').textContent = l2;
+  document.getElementById('s3').textContent = risk + '%';
+  document.getElementById('s3').style.color = isHigh ? 'var(--c3)' : 'var(--c2)';
+  document.getElementById('s4').textContent = regimes[regIdx];
+  document.getElementById('s4').style.color = regColors[regIdx];
+
+  // Update risk preview
+  const rEl = document.getElementById('rp-num');
+  rEl.textContent = risk + '%';
+  rEl.style.color = risk > 55 ? 'var(--c3)' : 'var(--c2)';
+  document.getElementById('rp-label').textContent = risk > 60 ? 'VA A LLOVER' : risk > 35 ? 'POSIBLE LLUVIA' : 'CIELO DESPEJADO';
+
+  const cloudPct = Math.round(60 + Math.sin(tick * 0.06 + 2) * 25);
+  document.getElementById('b-clouds').style.width = cloudPct + '%';
+  document.getElementById('b-clouds').parentElement.nextElementSibling.textContent = cloudPct + '%';
+  document.getElementById('b-l1').style.width = (parseFloat(l1) * 100) + '%';
+  document.getElementById('b-l1').parentElement.nextElementSibling.textContent = l1;
+}, 900);
+</script>
+</body>
+</html>
