@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Va a Llover · Giroscopio Bayesiano + Simulación Suave (KNN)</title>
+    <!-- Leaflet + heatmap -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: #0a0e1a;
+            color: #e0f2fe;
+            overflow: hidden;
+            height: 100vh;
+        }
+        .app { display: flex; flex-direction: row; height: 100vh; width: 100vw; }
+        .map-panel {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(10, 14, 26, 0.6);
+            backdrop-filter: blur(8px);
+            border-right: 1px solid #1e3a5f;
+            padding: 12px;
+            gap: 12px;
+            overflow-y: auto;
+        }
+        #map { height: 280px; border-radius: 16px; border: 1px solid #22d3ee; }
+        .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+        input, button {
+            background: #0a0e1a;
+            border: 1px solid #1e3a5f;
+            color: #e0f2fe;
+            font-family: monospace;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        button:hover { background: #22d3ee; color: #0a0e1a; box-shadow: 0 0 8px rgba(34,211,238,0.6); }
+        .info-panel {
+            width: 60%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(18,24,43,0.85);
+            backdrop-filter: blur(12px);
+            padding: 12px;
+            gap: 12px;
+            overflow-y: auto;
+        }
+        #canvas-container { flex: 1; min-height: 260px; background: #020408; border-radius: 16px; border: 1px solid #2dd4bf; }
+        .card { background: rgba(10,14,26,0.7); border-radius: 12px; padding: 10px; border: 1px solid #1e3a5f; }
+        .card-title { font-family: 'Orbitron', monospace; font-size: 11px; letter-spacing: 2px; color: #7dd3fc; margin-bottom: 8px; border-bottom: 1px solid #1e3a5f; padding-bottom: 4px; }
+        .data-row { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; }
+        .eigen-bar { background: #0a0e1a; height: 4px; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+        .eigen-fill { height: 100%; background: linear-gradient(90deg, #22d3ee, #c084fc); width: 0%; }
+        .risk-high { color: #ef4444; font-weight: bold; }
+        .risk-medium { color: #fb923c; }
+        .risk-low { color: #4ade80; }
+        #log { font-size: 9px; color: #64748b; max-height: 120px; overflow-y: auto; border-top: 1px solid #1e3a5f; margin-top: 8px; padding-top: 4px; }
+        .game-feedback { font-size: 11px; color: #22d3ee; margin-top: 4px; }
+        canvas#decomp-chart { max-height: 150px; width: 100%; margin-top: 8px; }
+        .timestamp { font-size: 9px; color: #4ade80; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="map-panel">
+        <div class="card" style="padding:0"><div class="card-title">🛰️ MAPA DE RIESGO (calor + radar)</div><div id="map" style="height:280px"></div></div>
+        <div class="controls">
+            <input type="text" id="city-lat" placeholder="Lat" value="4.7110" style="width:70px">
+            <input type="text" id="city-lon" placeholder="Lon" value="-74.0721" style="width:70px">
+            <button id="fetch-btn">🌐 ACTUALIZAR</button>
+            <button id="play-sound">🎵 SONIDO</button>
+            <button id="stop-sound">🔇 SILENCIO</button>
+            <button id="download-csv">💾 CSV</button>
+        </div>
+        <div class="card">
+            <div class="card-title">📡 PREDICCIÓN VA A LLOVER (Bayesiana)</div>
+            <div id="rain-forecast" class="status-badge">Cargando...</div>
+            <div id="bayesian-risk" class="data-row"><span>🎲 Prob. a posteriori</span><span id="posterior-risk">0.00</span></div>
+            <div id="explanation" style="font-size:10px">Giroscopio: autovalores de correlación climática. Riesgo bayesiano actualizado en cada paso suave.</div>
+        </div>
+        <div class="card">
+            <div class="card-title">📈 DESCOMPOSICIÓN TEMPORAL (Temperatura suavizada)</div>
+            <canvas id="decomp-chart" width="400" height="120"></canvas>
+        </div>
+        <div id="log">📜 Log del sistema: esperando datos...</div>
+    </div>
+
+    <div class="info-panel">
+        <div id="canvas-container"></div>
+        <div class="card">
+            <div class="card-title">🎛️ AUTOVALORES (coherencia)</div>
+            <div class="data-row"><span>λ₁</span><span id="l1-val">0.00</span></div><div class="eigen-bar"><div class="eigen-fill" id="l1-bar"></div></div>
+            <div class="data-row"><span>λ₂</span><span id="l2-val">0.00</span></div><div class="eigen-bar"><div class="eigen-fill" id="l2-bar"></div></div>
+            <div class="data-row"><span>λ₃</span><span id="l3-val">0.00</span></div><div class="eigen-bar"><div class="eigen-fill" id="l3-bar"></div></div>
+            <div class="data-row"><span>🌦️ Régimen</span><span id="regime">—</span></div>
+            <div class="data-row"><span>☔ Riesgo (instantáneo)</span><span id="rain-risk">—</span></div>
+        </div>
+        <div class="card">
+            <div class="card-title">📊 DATOS ACTUALES <span id="current-time-label" class="timestamp"></span></div>
+            <div id="current-data">Sin datos</div>
+        </div>
+        <div class="card">
+            <div class="card-title">🔗 CORRELACIÓN (Lluvia ↔ Tráfico)</div>
+            <div class="data-row"><span>🏙️ Tráfico simulado</span><span id="traffic-index">—</span></div>
+            <div class="data-row"><span>⏱️ Retardo pico (h)</span><span id="lag-peak">—</span></div>
+            <div class="data-row"><span>📈 Coef. máximo</span><span id="max-corr">—</span></div>
+            <div class="data-row"><span>🌀 Autocorr. 24h</span><span id="auto-correlation">—</span></div>
+        </div>
+        <div class="card" id="game-card">
+            <div class="card-title">🎮 VA A LLOVER: EL JUEGO</div>
+            <div class="data-row"><span>Tu pronóstico (%)</span><span id="user-prediction">50%</span></div>
+            <input type="range" id="prediction-slider" min="0" max="100" value="50" step="1">
+            <button id="submit-prediction" style="width:100%; margin:6px 0">⚡ PRONOSTICAR</button>
+            <div class="data-row"><span>🏆 Puntuación</span><span id="player-score">0</span></div>
+            <div class="data-row"><span>🔥 Racha</span><span id="current-streak">0</span></div>
+            <div class="data-row"><span>🏅 Récord</span><span id="high-score">0</span></div>
+            <div id="game-feedback" class="game-feedback"></div>
+            <button id="reset-game" style="width:100%">🔄 REINICIAR JUEGO</button>
+        </div>
+        <div class="card">
+            <div class="card-title">⏳ LÍNEA DE TIEMPO (arrastra)</div>
+            <input type="range" id="timeline-slider" min="0" max="0" value="0" step="1">
+            <div class="data-row"><span>🕒 Instante</span><span id="timeline-time">—</span></div>
+            <div class="data-row"><span>🌡️ Temp</span><span id="timeline-temp">—</span></div>
+            <div class="data-row"><span>🌧️ Lluvia (mm/h)</span><span id="timeline-rain">—</span></div>
+        </div>
+        <div class="card"><div class="card-title">🎧 SONIFICACIÓN</div><div id="sonic-state">⚪ Inactivo</div></div>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // ---------- CONFIGURACIÓN ----------
+    let lat = 4.7110, lon = -74.0721;
+    let hourlyData = [];           // datos horarios crudos de Open-Meteo
+    let smoothTime = 0;            // índice virtual suavizado (pasos pequeños)
+    let smoothDataPoints = [];      // array de objetos interpolados {time, temp, humidity, pressure, wind_speed, clouds, rain}
+    let trafficSeries = [];
+    let eigenvalues = [0.5,0.3,0.2], prevEigen = [0.5,0.3,0.2];
+    let regime = "estable", rainRiskInstant = 0.0;
+    let currentWeather = null;
+    let crossCorrResults = { lag:0, maxCorr:0 }, autoCorr24h = 0;
+
+    // Estado bayesiano: prior Beta(α,β) y probabilidad posterior
+    let alpha = 1.0, beta = 1.0;   // Beta(1,1) = uniforme
+    let posteriorRainProb = 0.5;
+
+    // Juego
+    let playerScore = 0, currentStreak = 0, lastRiskInstant = null, gameActive = false, predictionValue = 50;
+    let highScore = localStorage.getItem('vaallover_highscore') || 0;
+
+    // Sonido
+    let audioCtx = null, oscPitch, oscDrone, noiseNode, masterGain, noiseGain, pitchGain, droneGain, synthActive = false;
+    let animInterval = null;
+
+    // Elementos DOM
+    const timelineSlider = document.getElementById('timeline-slider');
+    const timelineTime = document.getElementById('timeline-time');
+    const timelineTemp = document.getElementById('timeline-temp');
+    const timelineRain = document.getElementById('timeline-rain');
+
+    // ---------- THREE.JS GIROSCOPIO ----------
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020408);
+    scene.fog = new THREE.FogExp2(0x020408, 0.008);
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth/container.clientHeight, 0.1, 1000);
+    camera.position.set(2,1.5,4);
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const ambient = new THREE.AmbientLight(0x223366);
+    scene.add(ambient);
+    const light1 = new THREE.PointLight(0x88aaff,1); light1.position.set(2,3,4); scene.add(light1);
+    const light2 = new THREE.PointLight(0xc084fc,0.5); light2.position.set(-1,1,-2); scene.add(light2);
+    const ringX = new THREE.Mesh(new THREE.TorusGeometry(1.2,0.03,64,200), new THREE.MeshStandardMaterial({ color:0x22d3ee, emissive:0x0066aa }));
+    ringX.rotation.x = Math.PI/2; scene.add(ringX);
+    const ringY = new THREE.Mesh(new THREE.TorusGeometry(1.2,0.03,64,200), new THREE.MeshStandardMaterial({ color:0xfb923c })); scene.add(ringY);
+    const ringZ = new THREE.Mesh(new THREE.TorusGeometry(1.2,0.03,64,200), new THREE.MeshStandardMaterial({ color:0x4ade80 }));
+    ringZ.rotation.z = Math.PI/2; scene.add(ringZ);
+    const sphereGeo = new THREE.SphereGeometry(0.8,64,64);
+    const sphereMat = new THREE.MeshPhongMaterial({ color:0x22aaff, emissive:0x004466, shininess:60, transparent:true });
+    const coreSphere = new THREE.Mesh(sphereGeo, sphereMat);
+    scene.add(coreSphere);
+    const originalPos = sphereGeo.attributes.position.array.slice();
+    function deformSphere(eigen) {
+        const pos = sphereGeo.attributes.position.array;
+        const sx = 0.8 + eigen[0]*0.6, sy = 0.8 + eigen[1]*0.5, sz = 0.8 + eigen[2]*0.4;
+        for(let i=0; i<pos.length/3; i++) {
+            pos[i*3] = originalPos[i*3] * sx;
+            pos[i*3+1] = originalPos[i*3+1] * sy;
+            pos[i*3+2] = originalPos[i*3+2] * sz;
+        }
+        sphereGeo.attributes.position.needsUpdate = true;
+        sphereGeo.computeVertexNormals();
+        sphereMat.color.setHSL(0.55 + eigen[0]*0.2, 0.9, 0.5);
+        ringX.rotation.z += 0.005 * eigen[0];
+        ringY.rotation.x += 0.003 * eigen[1];
+        ringZ.rotation.y += 0.007 * eigen[2];
+    }
+    function animate3D() { requestAnimationFrame(animate3D); deformSphere(eigenvalues); camera.lookAt(0,0,0); renderer.render(scene,camera); }
+    animate3D();
+    window.addEventListener('resize',()=>{ const w=container.clientWidth, h=container.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); });
+
+    // ---------- FUNCIONES AUXILIARES ----------
+    function interpolateLinear(t, a, b) { return a + (b-a)*t; }
+    function gaussianNoise(mean=0, std=0.02) { return mean + (Math.random()*2-1)*std; }
+
+    // KNN suave: para un tiempo virtual (0..N-1 con pasos subhorarios) interpolamos entre dos horas vecinas
+    function buildSmoothData(hourly, stepsPerHour=4) {
+        if(!hourly.length) return [];
+        const smooth = [];
+        const totalVirtualSteps = (hourly.length-1) * stepsPerHour;
+        for(let v=0; v<=totalVirtualSteps; v++) {
+            const hourIdx = Math.floor(v / stepsPerHour);
+            const nextHourIdx = Math.min(hourly.length-1, hourIdx+1);
+            const t = (v % stepsPerHour) / stepsPerHour; // 0..1
+            const vtime = new Date(hourly[hourIdx].time).getTime() + t * (new Date(hourly[nextHourIdx].time) - new Date(hourly[hourIdx].time));
+            const temp = interpolateLinear(t, hourly[hourIdx].temp, hourly[nextHourIdx].temp);
+            const hum = interpolateLinear(t, hourly[hourIdx].humidity, hourly[nextHourIdx].humidity);
+            const press = interpolateLinear(t, hourly[hourIdx].pressure, hourly[nextHourIdx].pressure);
+            const wind = interpolateLinear(t, hourly[hourIdx].wind_speed, hourly[nextHourIdx].wind_speed);
+            const clouds = interpolateLinear(t, hourly[hourIdx].clouds, hourly[nextHourIdx].clouds);
+            let rain = interpolateLinear(t, hourly[hourIdx].rain, hourly[nextHourIdx].rain);
+            // añadir pequeño ruido realista
+            rain = Math.max(0, rain + gaussianNoise(0,0.05));
+            smooth.push({
+                time: new Date(vtime).toISOString(),
+                temp: temp + gaussianNoise(0,0.2),
+                humidity: Math.min(100, Math.max(0, hum + gaussianNoise(0,1))),
+                pressure: press + gaussianNoise(0,0.5),
+                wind_speed: Math.max(0, wind + gaussianNoise(0,0.2)),
+                clouds: Math.min(100, Math.max(0, clouds + gaussianNoise(0,2))),
+                rain: rain
+            });
+        }
+        return smooth;
+    }
+
+    // Calcular autovalores usando ventana deslizante sobre datos suavizados (cada cierto tiempo)
+    function computeEigenvaluesFromWindow(windowData) {
+        if(windowData.length<5) return [0.5,0.3,0.2];
+        const n = windowData.length, dim=6;
+        let means = new Array(dim).fill(0);
+        for(let i=0;i<n;i++) for(let j=0;j<dim;j++) means[j] += windowData[i][j];
+        for(let j=0;j<dim;j++) means[j]/=n;
+        let stds = new Array(dim).fill(0);
+        for(let i=0;i<n;i++) for(let j=0;j<dim;j++) stds[j] += (windowData[i][j]-means[j])**2;
+        for(let j=0;j<dim;j++) stds[j] = Math.sqrt(stds[j]/n);
+        let corr = Array(dim).fill().map(()=>Array(dim).fill(0));
+        for(let i=0;i<n;i++) {
+            for(let j=0;j<dim;j++) {
+                for(let k=0;k<dim;k++) {
+                    if(stds[j]>0 && stds[k]>0)
+                        corr[j][k] += (windowData[i][j]-means[j])*(windowData[i][k]-means[k])/(stds[j]*stds[k]);
+                }
+            }
+        }
+        for(let j=0;j<dim;j++) for(let k=0;k<dim;k++) corr[j][k]/=n;
+        let eig = powerIteration(corr,3);
+        let total = eig.reduce((a,b)=>a+b,1e-9);
+        return eig.map(e=>e/total);
+    }
+    function powerIteration(mat,num) {
+        let n=mat.length, A=mat.map(r=>r.slice()), vals=[];
+        for(let iter=0;iter<num;iter++) {
+            let b=new Array(n).fill(1);
+            for(let i=0;i<50;i++) {
+                let next=new Array(n).fill(0);
+                for(let j=0;j<n;j++) for(let k=0;k<n;k++) next[j]+=A[j][k]*b[k];
+                let norm=Math.hypot(...next);
+                if(norm>1e-9) for(let j=0;j<n;j++) next[j]/=norm;
+                b=next;
+            }
+            let eig=0;
+            for(let j=0;j<n;j++) for(let k=0;k<n;k++) eig+=A[j][k]*b[j]*b[k];
+            vals.push(eig);
+            for(let j=0;j<n;j++) for(let k=0;k<n;k++) A[j][k]-=eig*b[j]*b[k];
+        }
+        return vals;
+    }
+
+    // Actualización bayesiana del riesgo de lluvia
+    function bayesianUpdate(clouds, humidity, lambda1) {
+        // Verosimilitud: basada en nubes>70%, humedad>75%, λ₁>0.6
+        let likelihood = 0.2;
+        if(clouds > 70) likelihood += 0.3;
+        if(humidity > 75) likelihood += 0.3;
+        if(lambda1 > 0.6) likelihood += 0.3;
+        likelihood = Math.min(0.95, likelihood);
+        // Actualizar Beta posterior: a' = a + éxito, b' = b + fracaso (simulado)
+        // Simulamos un "éxito" (lluvia) si cierto umbral se cruza
+        const rainObserved = (clouds > 80 && humidity > 80) ? 1 : 0;
+        alpha += rainObserved * 0.5;
+        beta += (1 - rainObserved) * 0.2;
+        // La probabilidad posterior es media de Beta
+        let posterior = alpha / (alpha + beta);
+        posterior = Math.min(0.95, Math.max(0.05, posterior));
+        return posterior;
+    }
+
+    // Riesgo instantáneo (no bayesiano) combinado
+    function computeInstantRisk(weather, eigen) {
+        let risk = 0;
+        if(weather.clouds > 80 && weather.rain > 0.2) risk += 0.5;
+        if(weather.humidity > 80 && eigen[0] > 0.6) risk += 0.3;
+        if(weather.rain > 1) risk += 0.3;
+        return Math.min(1, risk);
+    }
+
+    // Generar tráfico simulado (igual que antes)
+    function generateTrafficFromWeather(hourly) {
+        const traffic=[];
+        for(let i=0;i<hourly.length;i++) {
+            let hour = new Date(hourly[i].time).getHours();
+            let circadian = Math.sin((hour-8)*Math.PI/12)*0.3+0.5;
+            if(hour>=7 && hour<=9) circadian+=0.3;
+            if(hour>=17 && hour<=19) circadian+=0.3;
+            let rainEffect = Math.min(0.5, hourly[i].rain/5);
+            traffic.push(Math.min(1, circadian+rainEffect+Math.random()*0.1));
+        }
+        return traffic;
+    }
+
+    // ---------- SONIDO ----------
+    async function initAudio() {
+        if(audioCtx) return;
+        audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        masterGain = audioCtx.createGain(); masterGain.gain.value=0; masterGain.connect(audioCtx.destination);
+        oscPitch = audioCtx.createOscillator(); pitchGain = audioCtx.createGain();
+        oscPitch.type='sine'; oscPitch.connect(pitchGain); pitchGain.connect(masterGain); oscPitch.start();
+        oscDrone = audioCtx.createOscillator(); droneGain = audioCtx.createGain();
+        oscDrone.type='triangle'; oscDrone.connect(droneGain); droneGain.connect(masterGain); oscDrone.start();
+        const bufSize=4096, noiseBuf=audioCtx.createBuffer(1,bufSize,audioCtx.sampleRate);
+        const out=noiseBuf.getChannelData(0); for(let i=0;i<bufSize;i++) out[i]=Math.random()*2-1;
+        noiseNode=audioCtx.createBufferSource(); noiseNode.buffer=noiseBuf; noiseNode.loop=true;
+        noiseGain=audioCtx.createGain(); noiseNode.connect(noiseGain); noiseGain.connect(masterGain); noiseNode.start();
+        synthActive=true; masterGain.gain.value=0.25;
+        await audioCtx.resume();
+    }
+    function updateSonification(weather, eigen, risk) {
+        if(!synthActive || !audioCtx) return;
+        let rainInt=Math.min(1,weather.rain/10), cloudNorm=weather.clouds/100;
+        let pitchFreq=100+rainInt*300+cloudNorm*200+eigen[0]*100;
+        oscPitch.frequency.value=Math.min(800,Math.max(80,pitchFreq));
+        pitchGain.gain.value=0.1+risk*0.3;
+        let pressNorm=(weather.pressure-1000)/50;
+        oscDrone.frequency.value=40+pressNorm*60;
+        droneGain.gain.value=0.1+(1-eigen[1])*0.2;
+        let windNorm=Math.min(1,weather.wind_speed/15);
+        noiseGain.gain.value=windNorm*0.25;
+        masterGain.gain.value=0.2+risk*0.6;
+        document.getElementById('sonic-state').innerHTML=`🎧 Activo | pitch=${pitchFreq.toFixed(0)}Hz | lluvia=${weather.rain.toFixed(1)}mm/h`;
+    }
+    function stopSonification() { if(masterGain) masterGain.gain.value=0; synthActive=false; }
+
+    // ---------- MAPA Y HEATMAP ----------
+    let map, heatLayer, radarLayer;
+    function initMap(lat,lon) {
+        if(map) map.remove();
+        map = L.map('map').setView([lat,lon],9);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'OSM CartoDB'}).addTo(map);
+        fetch('https://api.rainviewer.com/public/radar-maps.json')
+            .then(res=>res.json())
+            .then(data=>{
+                if(data.radar?.past?.length){
+                    const latestId=data.radar.past[data.radar.past.length-1].path;
+                    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${latestId}/256/{z}/{x}/{y}/1/1_1.png`,{opacity:0.5});
+                    radarLayer.addTo(map);
+                }
+            }).catch(e=>console.warn);
+        heatLayer = L.heatLayer([],{radius:25,blur:15,minOpacity:0.3});
+        heatLayer.addTo(map);
+    }
+    function updateHeatmap(risk) {
+        if(!heatLayer) return;
+        const points = [];
+        for(let i=0;i<30;i++) points.push([lat + (Math.random()-0.5)*0.5, lon + (Math.random()-0.5)*0.5, risk*100]);
+        heatLayer.setLatLngs(points);
+    }
+
+    // ---------- OBTENER DATOS HORARIOS ----------
+    async function fetchOpenMeteo(latitude, longitude) {
+        const url=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,relativehumidity_2m,pressure_msl,windspeed_10m,cloudcover,rain&timezone=auto&forecast_days=2`;
+        const resp=await fetch(url);
+        const data=await resp.json();
+        if(!data.hourly) throw new Error("No data");
+        const history=[];
+        for(let i=0;i<data.hourly.time.length;i++) {
+            history.push({
+                time: data.hourly.time[i],
+                temp: data.hourly.temperature_2m[i],
+                humidity: data.hourly.relativehumidity_2m[i],
+                pressure: data.hourly.pressure_msl[i],
+                wind_speed: data.hourly.windspeed_10m[i],
+                clouds: data.hourly.cloudcover[i],
+                rain: data.hourly.rain[i] || 0
+            });
+        }
+        return history;
+    }
+
+    // ---------- SIMULACIÓN SUAVE CON KNN (interpolación lineal + ruido) ----------
+    let simulationRunning = false;
+    let currentSmoothIdx = 0;
+    function startSmoothSimulation(hourlyData) {
+        if(animInterval) clearInterval(animInterval);
+        const stepsPerHour = 6;  // 6 pasos suaves por hora → 10 minutos por paso
+        const smooth = buildSmoothData(hourlyData, stepsPerHour);
+        smoothDataPoints = smooth;
+        trafficSeries = generateTrafficFromWeather(hourlyData); // solo para correlación
+        // Inicializar timeline slider con índices suavizados
+        timelineSlider.max = smooth.length-1;
+        timelineSlider.value = 0;
+        timelineSlider.oninput = (e) => {
+            const idx = parseInt(e.target.value,10);
+            if(smooth[idx]) {
+                const d = new Date(smooth[idx].time);
+                timelineTime.innerText = d.toLocaleString();
+                timelineTemp.innerText = smooth[idx].temp.toFixed(1)+'°C';
+                timelineRain.innerText = smooth[idx].rain.toFixed(2)+' mm/h';
+            }
+        };
+        currentSmoothIdx = 0;
+        simulationRunning = true;
+        animInterval = setInterval(() => {
+            if(!simulationRunning) return;
+            if(currentSmoothIdx >= smooth.length) currentSmoothIdx = 0;
+            const current = smooth[currentSmoothIdx];
+            if(!current) return;
+            currentWeather = current;
+            // Calcular autovalores usando ventana de 12 pasos suavizados (~2 horas)
+            const windowSize = 12; // 12 pasos suaves = 2 horas reales
+            const windowVec = [];
+            for(let i=Math.max(0, currentSmoothIdx-windowSize+1); i<=currentSmoothIdx; i++) {
+                if(smooth[i]) {
+                    windowVec.push([
+                        smooth[i].temp, smooth[i].humidity/100, smooth[i].pressure/1000,
+                        smooth[i].wind_speed/15, smooth[i].clouds/100, Math.min(1, smooth[i].rain/10)
+                    ]);
+                }
+            }
+            const eigen = computeEigenvaluesFromWindow(windowVec);
+            eigenvalues = eigen;
+            const instantRisk = computeInstantRisk(current, eigen);
+            rainRiskInstant = instantRisk;
+            // Actualización bayesiana
+            posteriorRainProb = bayesianUpdate(current.clouds, current.humidity, eigen[0]);
+            // Régimen
+            let delta = Math.abs(eigen[0]-prevEigen[0]);
+            let regimeText = "estable";
+            if(delta>0.12) regimeText="transición";
+            else if(eigen[0]>0.7) regimeText="coherente";
+            else if(eigen[0]<0.4) regimeText="caótico";
+            regime = regimeText;
+            // Correlaciones (usando datos horarios originales para no recargar)
+            if(hourlyData.length>12) {
+                const rainSer = hourlyData.slice(-24).map(p=>p.rain);
+                const trafficSub = trafficSeries.slice(-24);
+                const cross = crossCorrelation(rainSer, trafficSub, 8);
+                if(cross.length) {
+                    let best = cross.reduce((max,c)=>c.corr>max.corr?c:max,{lag:0,corr:-1});
+                    crossCorrResults = { lag:best.lag, maxCorr:best.corr };
+                }
+                const tempSer = hourlyData.slice(-48).map(p=>p.temp);
+                autoCorr24h = autocorrelation(tempSer,24);
+            }
+            // Actualizar UI
+            updateUI(eigen, instantRisk, regime, current, crossCorrResults, autoCorr24h);
+            if(synthActive && audioCtx) updateSonification(current, eigen, instantRisk);
+            // Juego: activar nuevo ciclo si riesgo cambió
+            if(!gameActive && (lastRiskInstant===null || Math.abs(instantRisk-lastRiskInstant)>0.05)) {
+                gameActive = true;
+                lastRiskInstant = instantRisk;
+                document.getElementById('game-feedback').innerHTML = `🎲 ¡Nuevo ciclo! Predice riesgo (actual ${Math.round(instantRisk*100)}%). Autovalores sugieren ${instantRisk>0.6?'alto':instantRisk<0.3?'bajo':'moderado'}.`;
+            }
+            // Mapa de calor
+            updateHeatmap(instantRisk);
+            // Descomposición temporal (cada 5 pasos)
+            if(currentSmoothIdx % 5 === 0) {
+                const tempSeries = smooth.slice(Math.max(0,currentSmoothIdx-48), currentSmoothIdx+1).map(p=>p.temp);
+                updateDecompositionChart(tempSeries);
+            }
+            // Log de transición
+            if(Math.abs(eigenvalues[0]-prevEigen[0])>0.1) addLog(`⚠️ Transición: λ₁ ${prevEigen[0].toFixed(2)} → ${eigenvalues[0].toFixed(2)}`);
+            prevEigen = [...eigenvalues];
+            currentSmoothIdx++;
+        }, 800); // cada 0.8 segundos un paso suave (simula 10 min reales)
+    }
+
+    function crossCorrelation(seriesA, seriesB, maxLag) {
+        const n = Math.min(seriesA.length, seriesB.length);
+        if(n<maxLag+2) return [];
+        let meanA=0,meanB=0; for(let i=0;i<n;i++){meanA+=seriesA[i];meanB+=seriesB[i];}
+        meanA/=n; meanB/=n;
+        let sumSqA=0,sumSqB=0; for(let i=0;i<n;i++){sumSqA+=(seriesA[i]-meanA)**2; sumSqB+=(seriesB[i]-meanB)**2;}
+        const denom=Math.sqrt(sumSqA*sumSqB);
+        if(denom===0) return [];
+        const res=[];
+        for(let lag=-maxLag; lag<=maxLag; lag++) {
+            let num=0, len=n-Math.abs(lag);
+            for(let i=0;i<len;i++) {
+                const idxA = lag>=0 ? i : i-lag;
+                const idxB = lag>=0 ? i+lag : i;
+                if(idxA>=0 && idxA<n && idxB>=0 && idxB<n) num+=(seriesA[idxA]-meanA)*(seriesB[idxB]-meanB);
+            }
+            res.push({lag, corr:num/denom});
+        }
+        return res;
+    }
+    function autocorrelation(series, lag) {
+        if(series.length<lag+2) return 0;
+        let mean=0; for(let v of series) mean+=v; mean/=series.length;
+        let num=0, den=0;
+        for(let i=0;i<series.length-lag;i++) {
+            num+=(series[i]-mean)*(series[i+lag]-mean);
+            den+=(series[i]-mean)**2;
+        }
+        return den===0?0:num/den;
+    }
+
+    // ---------- UI ----------
+    function updateUI(eigen, risk, regime, weather, cross, autocorr) {
+        document.getElementById('l1-val').innerText=eigen[0].toFixed(3);
+        document.getElementById('l2-val').innerText=eigen[1].toFixed(3);
+        document.getElementById('l3-val').innerText=eigen[2].toFixed(3);
+        document.getElementById('l1-bar').style.width=eigen[0]*100+'%';
+        document.getElementById('l2-bar').style.width=eigen[1]*100+'%';
+        document.getElementById('l3-bar').style.width=eigen[2]*100+'%';
+        document.getElementById('regime').innerText=regime;
+        document.getElementById('rain-risk').innerHTML=`<span class="${risk>0.6?'risk-high':risk>0.3?'risk-medium':'risk-low'}">${Math.round(risk*100)}%</span>`;
+        document.getElementById('rain-forecast').innerHTML=risk>0.6?'⚠️ VA A LLOVER (alta)':(risk>0.3?'🌧️ Posible':'☀️ Poca');
+        document.getElementById('posterior-risk').innerHTML=`${Math.round(posteriorRainProb*100)}%`;
+        document.getElementById('traffic-index').innerHTML=(trafficSeries[Math.min(trafficSeries.length-1, Math.floor(currentSmoothIdx/6))]||0.5).toFixed(2);
+        document.getElementById('lag-peak').innerHTML=`${cross.lag} horas`;
+        document.getElementById('max-corr').innerHTML=cross.maxCorr.toFixed(3);
+        document.getElementById('auto-correlation').innerHTML=autocorr.toFixed(3)+(autocorr>0.5?' (fuerte ciclo)':'');
+        if(weather) {
+            const dt = new Date(weather.time);
+            document.getElementById('current-time-label').innerHTML = `🕒 ${dt.toLocaleString()}`;
+            document.getElementById('current-data').innerHTML = `
+                <div class="data-row">🌡️ Temp: ${weather.temp.toFixed(1)}°C</div>
+                <div class="data-row">💧 Humedad: ${weather.humidity.toFixed(0)}%</div>
+                <div class="data-row">⏲️ Presión: ${weather.pressure.toFixed(0)} hPa</div>
+                <div class="data-row">💨 Viento: ${weather.wind_speed.toFixed(1)} m/s</div>
+                <div class="data-row">☁️ Nubes: ${weather.clouds.toFixed(0)}%</div>
+                <div class="data-row">🌧️ Lluvia: ${weather.rain.toFixed(2)} mm/h</div>
+            `;
+        }
+    }
+
+    let decompChart = null;
+    function updateDecompositionChart(tempSeries) {
+        if(tempSeries.length<10) return;
+        const trend=[], seasonal=[], residual=[];
+        for(let i=0;i<tempSeries.length;i++) {
+            let t=tempSeries[i];
+            if(i>=1 && i<tempSeries.length-1) t=(tempSeries[i-1]+tempSeries[i]+tempSeries[i+1])/3;
+            trend.push(t);
+            let s=0; if(i>=24) s=tempSeries[i]-tempSeries[i-24];
+            seasonal.push(s);
+            residual.push(tempSeries[i]-trend[i]-seasonal[i]);
+        }
+        const ctx = document.getElementById('decomp-chart').getContext('2d');
+        if(decompChart) decompChart.destroy();
+        decompChart = new Chart(ctx, {
+            type:'line', data:{ labels: tempSeries.map((_,i)=>i), datasets:[
+                {label:'Tendencia', data:trend, borderColor:'#22d3ee', pointRadius:0, tension:0.2},
+                {label:'Estacionalidad', data:seasonal, borderColor:'#4ade80', pointRadius:0, tension:0.2},
+                {label:'Residual', data:residual, borderColor:'#ef4444', pointRadius:0, tension:0.2}
+            ]}, options:{ responsive:true, maintainAspectRatio:true, plugins:{legend:{labels:{color:'#7dd3fc',font:{size:8}}}}}
+        });
+    }
+
+    function addLog(msg) {
+        const logDiv=document.getElementById('log');
+        const t=new Date().toLocaleTimeString();
+        logDiv.innerHTML=`<div>${t} | ${msg}</div>`+logDiv.innerHTML;
+        if(logDiv.children.length>20) logDiv.removeChild(logDiv.lastChild);
+    }
+
+    // ---------- JUEGO ----------
+    function initGame() {
+        const slider=document.getElementById('prediction-slider');
+        const submit=document.getElementById('submit-prediction');
+        const reset=document.getElementById('reset-game');
+        slider.addEventListener('input',(e)=>{ predictionValue=parseInt(e.target.value); document.getElementById('user-prediction').innerText=predictionValue+'%'; });
+        submit.addEventListener('click',()=>{
+            if(!gameActive){ document.getElementById('game-feedback').innerHTML="⏳ Espera nuevo ciclo de datos."; return; }
+            if(lastRiskInstant!==null){
+                const real=Math.round(lastRiskInstant*100);
+                const diff=Math.abs(predictionValue-real);
+                let points=Math.max(0,100-diff);
+                let feedback="";
+                if(points>=70){
+                    currentStreak++;
+                    points=Math.floor(points*(1+currentStreak*0.1));
+                    feedback=`✅ ¡ACERTASTE! +${points} puntos. Racha: ${currentStreak}`;
+                } else { currentStreak=0; feedback=`❌ Fallaste. Real era ${real}%. Racha perdida.`; }
+                playerScore+=points;
+                if(playerScore>highScore){ highScore=playerScore; localStorage.setItem('vaallover_highscore',highScore); feedback+=" 🎉 ¡NUEVO RÉCORD!"; }
+                document.getElementById('player-score').innerText=playerScore;
+                document.getElementById('current-streak').innerText=currentStreak;
+                document.getElementById('high-score').innerText=highScore;
+                document.getElementById('game-feedback').innerHTML=feedback;
+                gameActive=false;
+            } else { document.getElementById('game-feedback').innerHTML="⚠️ Riesgo no disponible."; }
+        });
+        reset.addEventListener('click',()=>{ playerScore=0; currentStreak=0; document.getElementById('player-score').innerText=playerScore; document.getElementById('current-streak').innerText=currentStreak; document.getElementById('game-feedback').innerHTML="✨ Reiniciado."; });
+        document.getElementById('high-score').innerText=highScore;
+    }
+
+    // ---------- EVENTOS PRINCIPALES ----------
+    document.getElementById('fetch-btn').onclick = async () => {
+        lat = parseFloat(document.getElementById('city-lat').value);
+        lon = parseFloat(document.getElementById('city-lon').value);
+        initMap(lat, lon);
+        addLog(`🌍 Solicitando Open‑Meteo para (${lat},${lon})`);
+        try {
+            const hourly = await fetchOpenMeteo(lat, lon);
+            if(hourly && hourly.length) {
+                hourlyData = hourly;
+                if(animInterval) clearInterval(animInterval);
+                startSmoothSimulation(hourlyData);
+                addLog(`✅ Datos cargados: ${hourly.length} horas → simulación suave activada.`);
+            } else throw new Error("Sin datos");
+        } catch(e){ addLog(`❌ Error: ${e.message}`); }
+    };
+    document.getElementById('play-sound').onclick = async () => { await initAudio(); synthActive=true; if(currentWeather) updateSonification(currentWeather, eigenvalues, rainRiskInstant); };
+    document.getElementById('stop-sound').onclick = () => stopSonification();
+    document.getElementById('download-csv').onclick = () => {
+        if(!hourlyData.length) return;
+        let csv="time,temp,humidity,pressure,wind_speed,clouds,rain,traffic\n";
+        for(let i=0;i<hourlyData.length;i++) csv+=`${hourlyData[i].time},${hourlyData[i].temp},${hourlyData[i].humidity},${hourlyData[i].pressure},${hourlyData[i].wind_speed},${hourlyData[i].clouds},${hourlyData[i].rain},${trafficSeries[i]||0}\n`;
+        const blob=new Blob([csv],{type:"text/csv"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download=`clima_${lat}_${lon}.csv`; a.click(); URL.revokeObjectURL(url);
+        addLog("📁 CSV descargado");
+    };
+
+    // Inicialización
+    window.addEventListener('load', async () => {
+        initMap(lat,lon);
+        initGame();
+        const demo = await fetchOpenMeteo(lat,lon);
+        if(demo) startSmoothSimulation(demo);
+        addLog("🛰️ Giroscopio Bayesiano activo. Simulación suave cada 10 min virtuales.");
+    });
+</script>
+</body>
+</html>

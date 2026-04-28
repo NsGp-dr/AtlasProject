@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RadioAtlas · Sonido de Fractales y Señales</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: #03050a;
+            font-family: 'Segoe UI', 'Inter', system-ui, monospace;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            overflow: auto;
+            position: relative;
+        }
+
+        /* Fondo reactivo (onda líquida) */
+        #wave-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            max-width: 1300px;
+            width: 100%;
+            background: rgba(10, 15, 28, 0.75);
+            backdrop-filter: blur(16px);
+            border-radius: 48px;
+            border: 1px solid rgba(45, 212, 191, 0.5);
+            padding: 18px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+
+        /* Layout de dos columnas (flexible) */
+        .two-cols {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .col-left {
+            flex: 1.2;
+            min-width: 280px;
+        }
+        .col-right {
+            flex: 0.9;
+            min-width: 250px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        /* Caja de imagen */
+        .image-box {
+            background: #00000066;
+            border-radius: 32px;
+            padding: 12px;
+            border: 1px solid #2dd4bf66;
+        }
+        .image-frame {
+            position: relative;
+            border-radius: 28px;
+            overflow: hidden;
+            background: #010101;
+        }
+        #main-image {
+            width: 100%;
+            display: block;
+            border-radius: 24px;
+            cursor: crosshair;
+        }
+        .scan-dot {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #ffdd88;
+            border-radius: 50%;
+            box-shadow: 0 0 18px #ffaa33;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: left 0.02s linear, top 0.02s linear;
+        }
+
+        /* DIALES (sliders) */
+        .dials {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .dial-item {
+            background: #0f172a;
+            border-radius: 40px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .dial-label {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: #aad0ff;
+            min-width: 90px;
+        }
+        input[type="range"] {
+            flex: 3;
+            min-width: 150px;
+            height: 4px;
+            background: #1e2a3a;
+            border-radius: 4px;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            width: 18px;
+            height: 18px;
+            background: #2dd4bf;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px #2dd4bf;
+        }
+        .value-badge {
+            background: #00000066;
+            border-radius: 30px;
+            padding: 4px 12px;
+            font-family: monospace;
+            font-size: 11px;
+            min-width: 60px;
+            text-align: center;
+            color: #b0f0ff;
+        }
+
+        /* Botones */
+        .button-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 12px 0;
+        }
+        .radio-btn {
+            background: #111827;
+            border: 1px solid #2dd4bf;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 60px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            flex: 1;
+        }
+        .radio-btn:hover {
+            background: #2dd4bf;
+            color: #03060b;
+            box-shadow: 0 0 12px #2dd4bfaa;
+        }
+        .select-small {
+            background: #0f172a;
+            border: 1px solid #2dd4bf;
+            border-radius: 40px;
+            color: white;
+            padding: 8px 12px;
+            font-size: 11px;
+        }
+        .file-pill {
+            background: #00000066;
+            border: 1px dashed #2dd4bf;
+            border-radius: 60px;
+            padding: 8px;
+            text-align: center;
+            font-size: 11px;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        /* Métricas */
+        .metrics {
+            display: flex;
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .metric-card {
+            background: #00000055;
+            border-radius: 28px;
+            padding: 8px;
+            text-align: center;
+            flex: 1;
+        }
+        .metric-label {
+            font-size: 9px;
+            color: #9ab3e0;
+        }
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            font-family: monospace;
+            color: #f7d44a;
+        }
+
+        /* Espectro */
+        .spectrum-box {
+            background: rgba(0,0,0,0.6);
+            border-radius: 32px;
+            padding: 16px;
+        }
+        .spectrum-title {
+            text-align: center;
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: #b288f0;
+        }
+        #spectrum {
+            width: 100%;
+            height: 120px;
+            background: #020408;
+            border-radius: 20px;
+            display: block;
+            margin-top: 10px;
+        }
+        .sonic-state {
+            font-size: 10px;
+            text-align: center;
+            margin-top: 8px;
+            color: #7dd3fc;
+        }
+        #log {
+            font-size: 9px;
+            color: #7c9bc0;
+            border-top: 1px solid #2dd4bf33;
+            margin-top: 12px;
+            padding-top: 8px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        hr {
+            border-color: #2dd4bf33;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+<canvas id="wave-canvas"></canvas>
+<div class="container">
+    <div class="two-cols">
+        <!-- Columna izquierda: imagen + controles principales -->
+        <div class="col-left">
+            <div class="image-box">
+                <div class="image-frame">
+                    <img id="main-image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23111'/%3E%3Ctext x='100' y='160' fill='%23aaa' font-size='16'%3EFractal o imagen%3C/text%3E%3C/svg%3E" alt="Visualización">
+                    <div id="scan-dot" class="scan-dot"></div>
+                </div>
+            </div>
+
+            <!-- Sliders principales -->
+            <div class="dials">
+                <div class="dial-item">
+                    <span class="dial-label">🌀 VELOCIDAD</span>
+                    <input type="range" id="speed" min="0.3" max="8" step="0.1" value="1.6">
+                    <span id="speed-val" class="value-badge">1.6 Hz</span>
+                </div>
+                <div class="dial-item">
+                    <span class="dial-label">📡 MODULACIÓN</span>
+                    <input type="range" id="mod" min="0" max="1" step="0.01" value="0.7">
+                    <span id="mod-val" class="value-badge">70%</span>
+                </div>
+                <div class="dial-item">
+                    <span class="dial-label">🎵 ARMÓNICOS</span>
+                    <input type="range" id="harm" min="0" max="1" step="0.01" value="0.5">
+                    <span id="harm-val" class="value-badge">50%</span>
+                </div>
+            </div>
+
+            <div class="button-row">
+                <div class="radio-btn" id="play">🎧 SINTONIZAR</div>
+                <div class="radio-btn" id="stop">🔇 SILENCIO</div>
+            </div>
+
+            <div class="button-row">
+                <div class="radio-btn" id="gen-fractal">🌀 GENERAR FRACTAL</div>
+                <select id="fractal-type" class="select-small">
+                    <option value="mandelbrot">Mandelbrot</option>
+                    <option value="julia">Julia</option>
+                </select>
+            </div>
+            <div id="julia-params" style="display:none; gap:8px; margin-bottom:12px;">
+                <input type="text" id="c-real" placeholder="Real" value="-0.7" style="width:80px; background:#0f172a; border:1px solid #2dd4bf; border-radius:30px; color:white; padding:6px;">
+                <input type="text" id="c-imag" placeholder="Imag" value="0.27015" style="width:80px; background:#0f172a; border:1px solid #2dd4bf; border-radius:30px; color:white; padding:6px;">
+            </div>
+
+            <div class="button-row">
+                <div class="file-pill" id="upload-image-btn">📷 SUBIR IMAGEN</div>
+                <div class="file-pill" id="upload-csv-btn">📊 CSV (señal)</div>
+            </div>
+            <input type="file" id="file-image" accept="image/*" style="display:none;">
+            <input type="file" id="file-csv" accept=".csv" style="display:none;">
+
+            <div class="metrics">
+                <div class="metric-card"><div class="metric-label">⭐ ESTRELLAS</div><div class="metric-value" id="star-count">0</div></div>
+                <div class="metric-card"><div class="metric-label">🌫️ DIFUSIÓN</div><div class="metric-value" id="diffuse">0.00</div></div>
+                <div class="metric-card"><div class="metric-label">🎼 TONO</div><div class="metric-value" id="avg-pitch">— Hz</div></div>
+            </div>
+            <div id="log">📡 RadioAtlas · Ajusta los diales, carga imagen/fractal y pulsa SINTONIZAR</div>
+        </div>
+
+        <!-- Columna derecha: espectro + información -->
+        <div class="col-right">
+            <div class="spectrum-box">
+                <div class="spectrum-title">🌊 ESPECTRO EN VIVO (FFT)</div>
+                <canvas id="spectrum" width="500" height="120"></canvas>
+                <div id="sonic-state" class="sonic-state">⚪ Esperando</div>
+            </div>
+            <div class="spectrum-box">
+                <div class="spectrum-title">🎛️ ONDA LÍQUIDA REACTIVA</div>
+                <div style="font-size:10px; line-height:1.5; margin-top:8px;">
+                    ▸ Fondo animado por amplitud y frecuencia<br>
+                    ▸ Escaneo espiral de la imagen<br>
+                    ▸ Brillo → Amplitud<br>
+                    ▸ Distancia centro → Tono<br>
+                    ▸ CSV → señal temporal
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ---------- DOM ----------
+    const imgEl = document.getElementById('main-image');
+    const scanDot = document.getElementById('scan-dot');
+    const logDiv = document.getElementById('log');
+    const spectrumCanvas = document.getElementById('spectrum');
+    const spectrumCtx = spectrumCanvas.getContext('2d');
+    const waveCanvas = document.getElementById('wave-canvas');
+    const waveCtx = waveCanvas.getContext('2d');
+
+    // ---------- ESTADO ----------
+    let imageGray = null;
+    let imgWidth = 0, imgHeight = 0;
+    let starPoints = 0, diffuseEnergy = 0.5;
+    let signalSeries = null;
+    let signalMode = false;
+    let currentSignalPos = 0;
+
+    // Audio
+    let audioCtx = null;
+    let masterGain = null;
+    let carrierOsc = null, harmonicOsc = null;
+    let carrierGain = null, harmonicGain = null;
+    let filterNode = null, analyser = null;
+    let sonicActive = false;
+    let animFrame = null;
+    let waveFrame = null;
+
+    // Parámetros UI
+    let scanSpeed = 1.6, modDepth = 0.7, harmonicMix = 0.5;
+    let scanAngle = 0;
+    let lastTimestamp = 0;
+    let currentAmplitude = 0.05;
+    let currentFreq = 200;
+
+    // ---------- AUXILIARES ----------
+    function addLog(msg) {
+        const t = new Date().toLocaleTimeString();
+        logDiv.innerHTML = `<div>${t} ${msg}</div>` + logDiv.innerHTML;
+        if (logDiv.children.length > 12) logDiv.removeChild(logDiv.lastChild);
+    }
+    function updateMetrics() {
+        document.getElementById('star-count').innerText = starPoints;
+        document.getElementById('diffuse').innerText = diffuseEnergy.toFixed(3);
+    }
+
+    // análisis de imagen
+    function analyzeImage(gray, w, h) {
+        let stars = 0;
+        const th = 0.85;
+        for (let y = 2; y < h-2; y++) {
+            for (let x = 2; x < w-2; x++) {
+                const idx = y*w + x;
+                if (gray[idx] > th) {
+                    let isPeak = true;
+                    for (let dy = -1; dy <= 1; dy++)
+                        for (let dx = -1; dx <= 1; dx++)
+                            if (gray[(y+dy)*w + (x+dx)] > gray[idx]) isPeak = false;
+                    if (isPeak) stars++;
+                }
+            }
+        }
+        starPoints = Math.min(300, stars);
+        let sum = 0; for (let v of gray) sum += v;
+        const mean = sum / gray.length;
+        let varSum = 0; for (let v of gray) varSum += (v-mean)**2;
+        diffuseEnergy = Math.min(1, varSum/gray.length / 0.12);
+        updateMetrics();
+    }
+
+    // cargar imagen local (sin CORS)
+    function loadImageFromBlob(blob) {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            imgEl.src = url;
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, img.width, img.height);
+            const gray = new Float32Array(img.width * img.height);
+            for (let i=0; i<gray.length; i++) {
+                const r = imgData.data[i*4];
+                const g = imgData.data[i*4+1];
+                const b = imgData.data[i*4+2];
+                gray[i] = (r+g+b) / (3*255);
+            }
+            imageGray = gray;
+            imgWidth = img.width;
+            imgHeight = img.height;
+            signalMode = false;
+            analyzeImage(gray, imgWidth, imgHeight);
+            addLog(`✅ Imagen ${img.width}x${img.height} cargada. Estrellas: ${starPoints}`);
+            URL.revokeObjectURL(url);
+        };
+        img.src = url;
+    }
+
+    // Generar fractal
+    function generateFractal(type, cReal = -0.7, cImag = 0.27015) {
+        const size = 500;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.getImageData(0, 0, size, size);
+        const data = imgData.data;
+        const maxIter = 80;
+        for (let py = 0; py < size; py++) {
+            for (let px = 0; px < size; px++) {
+                let x0 = (px / size) * 3.5 - 2.5;
+                let y0 = (py / size) * 2.0 - 1.0;
+                let x = 0, y = 0;
+                let iter = 0;
+                if (type === 'mandelbrot') {
+                    x = 0; y = 0;
+                    while (x*x + y*y < 4 && iter < maxIter) {
+                        let xt = x*x - y*y + x0;
+                        y = 2*x*y + y0;
+                        x = xt;
+                        iter++;
+                    }
+                } else {
+                    let cx = cReal, cy = cImag;
+                    x = x0; y = y0;
+                    while (x*x + y*y < 4 && iter < maxIter) {
+                        let xt = x*x - y*y + cx;
+                        y = 2*x*y + cy;
+                        x = xt;
+                        iter++;
+                    }
+                }
+                const brightness = iter / maxIter;
+                const val = Math.floor(brightness * 255);
+                const idx = (py * size + px) * 4;
+                data[idx] = val;
+                data[idx+1] = val * 0.8;
+                data[idx+2] = val * 0.5 + 80;
+                data[idx+3] = 255;
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        const url = canvas.toDataURL();
+        const img = new Image();
+        img.onload = () => {
+            imgEl.src = url;
+            const gCanvas = document.createElement('canvas');
+            gCanvas.width = size;
+            gCanvas.height = size;
+            const gCtx = gCanvas.getContext('2d');
+            gCtx.drawImage(img, 0, 0);
+            const gData = gCtx.getImageData(0, 0, size, size);
+            const gray = new Float32Array(size*size);
+            for (let i=0; i<gray.length; i++) {
+                const r = gData.data[i*4];
+                const g = gData.data[i*4+1];
+                const b = gData.data[i*4+2];
+                gray[i] = (r+g+b) / (3*255);
+            }
+            imageGray = gray;
+            imgWidth = size;
+            imgHeight = size;
+            signalMode = false;
+            analyzeImage(gray, size, size);
+            addLog(`🌀 Fractal ${type} generado (${size}x${size})`);
+        };
+        img.src = url;
+    }
+
+    // Cargar CSV
+    function loadCSV(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            const lines = text.split(/\r?\n/);
+            const values = [];
+            for (let line of lines) {
+                const parts = line.split(/[ ,;]+/);
+                if (parts.length >= 2) {
+                    const val = parseFloat(parts[1]);
+                    if (!isNaN(val)) values.push(val);
+                } else if (parts.length === 1) {
+                    const val = parseFloat(parts[0]);
+                    if (!isNaN(val)) values.push(val);
+                }
+            }
+            if (values.length < 10) { addLog("❌ CSV necesita más datos"); return; }
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            signalSeries = values.map(v => (v - min) / (max - min + 0.001));
+            signalMode = true;
+            starPoints = 0;
+            diffuseEnergy = 0.5;
+            updateMetrics();
+            addLog(`📊 Señal CSV cargada: ${signalSeries.length} puntos.`);
+            // preview simple
+            const preview = document.createElement('canvas');
+            preview.width = 500;
+            preview.height = 200;
+            const pCtx = preview.getContext('2d');
+            pCtx.fillStyle = '#111';
+            pCtx.fillRect(0,0,500,200);
+            pCtx.strokeStyle = '#2dd4bf';
+            pCtx.beginPath();
+            for (let i=0; i<signalSeries.length; i++) {
+                const x = (i / signalSeries.length) * 500;
+                const y = 200 - signalSeries[i] * 180;
+                if (i===0) pCtx.moveTo(x,y); else pCtx.lineTo(x,y);
+            }
+            pCtx.stroke();
+            imgEl.src = preview.toDataURL();
+        };
+        reader.readAsText(file);
+    }
+
+    // ---------- AUDIO Y ESCANEO ----------
+    async function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0;
+        masterGain.connect(audioCtx.destination);
+        carrierOsc = audioCtx.createOscillator();
+        carrierGain = audioCtx.createGain();
+        carrierOsc.type = 'sine';
+        carrierOsc.connect(carrierGain);
+        carrierGain.connect(masterGain);
+        carrierOsc.start();
+        harmonicOsc = audioCtx.createOscillator();
+        harmonicGain = audioCtx.createGain();
+        harmonicOsc.type = 'triangle';
+        harmonicOsc.connect(harmonicGain);
+        harmonicGain.connect(masterGain);
+        harmonicOsc.start();
+        filterNode = audioCtx.createBiquadFilter();
+        filterNode.type = 'lowpass';
+        masterGain.connect(filterNode);
+        filterNode.connect(audioCtx.destination);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        filterNode.connect(analyser);
+        await audioCtx.resume();
+        sonicActive = true;
+        masterGain.gain.value = 0.2;
+        startSonificationLoop();
+        startWaveBackground();
+    }
+
+    function stopSound() {
+        if (masterGain) masterGain.gain.value = 0;
+        sonicActive = false;
+        if (animFrame) cancelAnimationFrame(animFrame);
+        document.getElementById('sonic-state').innerHTML = '⚪ Silencio';
+        scanDot.style.display = 'none';
+    }
+
+    function startSonificationLoop() {
+        if (animFrame) cancelAnimationFrame(animFrame);
+        let last = 0;
+        function tick(now) {
+            if (!sonicActive || !audioCtx) { animFrame = requestAnimationFrame(tick); return; }
+            const dt = Math.min(0.033, (now - last) / 1000);
+            last = now;
+            let brightness = 0.5;
+            let distToCenter = 0.5;
+            let starPulse = false;
+            if (!signalMode && imageGray && imgWidth && imgHeight) {
+                scanAngle += scanSpeed * dt * Math.PI * 2;
+                if (scanAngle > Math.PI*2) scanAngle -= Math.PI*2;
+                const tRadial = (performance.now() * 0.001 * scanSpeed * 0.3) % 1;
+                const radius = Math.sqrt(tRadial);
+                const xNorm = 0.5 + Math.cos(scanAngle) * radius * 0.5;
+                const yNorm = 0.5 + Math.sin(scanAngle) * radius * 0.5;
+                const px = Math.floor(xNorm * imgWidth);
+                const py = Math.floor(yNorm * imgHeight);
+                if (px>=0 && px<imgWidth && py>=0 && py<imgHeight) {
+                    brightness = imageGray[py * imgWidth + px];
+                    distToCenter = Math.sqrt((xNorm-0.5)**2 + (yNorm-0.5)**2) * 2;
+                    if (brightness > 0.87 && starPoints>0 && Math.random()<0.05) starPulse = true;
+                    const imgRect = imgEl.getBoundingClientRect();
+                    const dotX = imgRect.left + xNorm * imgRect.width;
+                    const dotY = imgRect.top + yNorm * imgRect.height;
+                    scanDot.style.display = 'block';
+                    scanDot.style.left = dotX + 'px';
+                    scanDot.style.top = dotY + 'px';
+                }
+            } else if (signalMode && signalSeries) {
+                currentSignalPos += scanSpeed * dt;
+                if (currentSignalPos >= signalSeries.length) currentSignalPos = 0;
+                const idx = Math.floor(currentSignalPos);
+                brightness = signalSeries[idx];
+                distToCenter = 0.5;
+                scanDot.style.display = 'none';
+            } else {
+                scanDot.style.display = 'none';
+            }
+            let baseFreq = 100 + distToCenter * 500;
+            let amplitude = brightness * (0.2 + modDepth * 0.8);
+            const filterFreq = 400 + diffuseEnergy * 4600;
+            filterNode.frequency.value = filterFreq;
+            const harmonicFreq = baseFreq * (1.2 + harmonicMix * 1.5);
+            carrierOsc.frequency.value = baseFreq;
+            harmonicOsc.frequency.value = harmonicFreq;
+            carrierGain.gain.value = amplitude * 0.5;
+            harmonicGain.gain.value = amplitude * harmonicMix * 0.4;
+            if (starPulse) {
+                const beep = audioCtx.createOscillator();
+                const bGain = audioCtx.createGain();
+                beep.type = 'sine';
+                beep.frequency.value = 1600 + Math.random() * 600;
+                beep.connect(bGain);
+                bGain.connect(masterGain);
+                bGain.gain.setValueAtTime(0.22, audioCtx.currentTime);
+                bGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+                beep.start();
+                beep.stop(audioCtx.currentTime + 0.1);
+            }
+            document.getElementById('avg-pitch').innerText = Math.round(baseFreq) + ' Hz';
+            document.getElementById('sonic-state').innerHTML = `🎧 brillo ${brightness.toFixed(2)} · tono ${Math.round(baseFreq)}Hz`;
+            currentAmplitude = amplitude;
+            currentFreq = baseFreq;
+            // Espectro
+            if (analyser) {
+                const freqData = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(freqData);
+                spectrumCtx.fillStyle = '#020408';
+                spectrumCtx.fillRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
+                const barW = spectrumCanvas.width / freqData.length;
+                for (let i=0; i<freqData.length; i++) {
+                    const h = (freqData[i]/255) * spectrumCanvas.height;
+                    spectrumCtx.fillStyle = `hsl(${180 + i*2}, 70%, 58%)`;
+                    spectrumCtx.fillRect(i*barW, spectrumCanvas.height - h, barW-1, h);
+                }
+            }
+            animFrame = requestAnimationFrame(tick);
+        }
+        animFrame = requestAnimationFrame(tick);
+    }
+
+    // Fondo reactivo (onda líquida)
+    function startWaveBackground() {
+        let resize = () => { waveCanvas.width = window.innerWidth; waveCanvas.height = window.innerHeight; };
+        window.addEventListener('resize', resize);
+        resize();
+        let time = 0;
+        function drawWave() {
+            if (!waveCtx) return;
+            const w = waveCanvas.width, h = waveCanvas.height;
+            waveCtx.fillStyle = '#020408';
+            waveCtx.fillRect(0, 0, w, h);
+            const centerX = w/2, centerY = h/2;
+            const maxR = Math.min(w, h) * 0.6;
+            const rings = 8;
+            const pulse = 0.3 + currentAmplitude * 1.2;
+            const freqFactor = 0.005 + (currentFreq / 2000) * 0.02;
+            for (let r = 0; r < rings; r++) {
+                const rad = (r / rings) * maxR;
+                const phase = time * 3 + rad * freqFactor * 20;
+                const variation = Math.sin(phase) * pulse * 8;
+                const alpha = 0.1 + currentAmplitude * 0.3;
+                waveCtx.beginPath();
+                waveCtx.ellipse(centerX, centerY, rad + variation, rad * 0.8 + variation*0.5, 0, 0, Math.PI*2);
+                waveCtx.strokeStyle = `rgba(45, 212, 191, ${alpha})`;
+                waveCtx.lineWidth = 1.2;
+                waveCtx.stroke();
+                waveCtx.beginPath();
+                waveCtx.ellipse(centerX, centerY, rad*0.6 + variation*0.4, rad*0.5 + variation*0.3, 0, 0, Math.PI*2);
+                waveCtx.strokeStyle = `rgba(192, 132, 252, ${alpha*0.7})`;
+                waveCtx.stroke();
+            }
+            time += 0.03;
+            waveFrame = requestAnimationFrame(drawWave);
+        }
+        drawWave();
+    }
+
+    // ---------- EVENTOS UI ----------
+    document.getElementById('speed').addEventListener('input', e=>{ scanSpeed=parseFloat(e.target.value); document.getElementById('speed-val').innerText=scanSpeed.toFixed(1)+' Hz'; });
+    document.getElementById('mod').addEventListener('input', e=>{ modDepth=parseFloat(e.target.value); document.getElementById('mod-val').innerText=Math.round(modDepth*100)+'%'; });
+    document.getElementById('harm').addEventListener('input', e=>{ harmonicMix=parseFloat(e.target.value); document.getElementById('harm-val').innerText=Math.round(harmonicMix*100)+'%'; });
+    document.getElementById('play').onclick = async () => { if (!audioCtx) await initAudio(); else { sonicActive=true; masterGain.gain.value=0.2; if (!animFrame) startSonificationLoop(); } };
+    document.getElementById('stop').onclick = () => stopSound();
+    document.getElementById('gen-fractal').onclick = () => {
+        const type = document.getElementById('fractal-type').value;
+        if (type === 'julia') {
+            const real = parseFloat(document.getElementById('c-real').value);
+            const imag = parseFloat(document.getElementById('c-imag').value);
+            generateFractal('julia', real, imag);
+        } else generateFractal('mandelbrot');
+        stopSound();
+    };
+    document.getElementById('fractal-type').addEventListener('change', (e) => {
+        document.getElementById('julia-params').style.display = e.target.value === 'julia' ? 'flex' : 'none';
+    });
+    document.getElementById('upload-image-btn').onclick = () => document.getElementById('file-image').click();
+    document.getElementById('file-image').onchange = (e) => { if (e.target.files[0]) loadImageFromBlob(e.target.files[0]); };
+    document.getElementById('upload-csv-btn').onclick = () => document.getElementById('file-csv').click();
+    document.getElementById('file-csv').onchange = (e) => { if (e.target.files[0]) loadCSV(e.target.files[0]); };
+
+    // Inicializar con fractal
+    generateFractal('mandelbrot');
+    addLog("🌀 RadioAtlas · Gira los diales y sintoniza el universo.");
+</script>
+</body>
+</html>
