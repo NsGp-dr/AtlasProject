@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verosimilitud ≻ Mayorización — Presentación Beamer</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --bg: #030608; --bg2: #05090e; --text: #8ab8cc; --bright: #d4edf7;
+            --c1: #00c8e0; --c2: #39ff84; --c3: #ff5e1a; --c4: #b06aff; --c5: #ffe066;
+            --dim: #1e3a52; --muted: #3d6880; --bord: #0c1e2c;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            background: var(--bg); color: var(--text);
+            overflow: hidden; height: 100vh; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .slide-container {
+            width: 100vw; height: 100vh; display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px; overflow-y: auto;
+        }
+        .slide {
+            width: 90vw; max-width: 1100px; min-height: 85vh;
+            background: var(--bg2); border: 1px solid var(--bord);
+            border-radius: 8px; padding: 30px 35px; position: relative;
+            box-shadow: 0 0 40px rgba(0,200,224,0.08);
+            display: none; flex-direction: column;
+        }
+        .slide.active { display: flex; }
+        .slide-number {
+            position: absolute; bottom: 12px; right: 18px;
+            font-size: 10px; color: var(--dim); letter-spacing: 2px;
+        }
+        .title-slide h1 {
+            font-family: 'Syne', sans-serif; font-size: 32px; color: var(--c1);
+            letter-spacing: 3px; margin-bottom: 10px;
+        }
+        .title-slide .subtitle {
+            font-size: 14px; color: var(--muted); letter-spacing: 4px;
+        }
+        .title-slide .author {
+            font-size: 11px; color: var(--dim); margin-top: 30px;
+        }
+        h2 {
+            font-family: 'Syne', sans-serif; font-size: 18px; color: var(--c1);
+            letter-spacing: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--bord);
+            padding-bottom: 6px;
+        }
+        h3 { font-size: 14px; color: var(--c4); margin: 14px 0 6px; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .box {
+            background: var(--bg); border: 1px solid var(--bord); border-radius: 4px;
+            padding: 14px; margin: 10px 0;
+        }
+        .box.highlight { border-color: var(--c1); box-shadow: 0 0 12px rgba(0,200,224,0.15); }
+        svg { max-width: 100%; }
+        .nav-bar {
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 100;
+        }
+        .nav-btn {
+            background: var(--bg2); border: 1px solid var(--bord); color: var(--muted);
+            font-family: monospace; font-size: 10px; padding: 4px 12px; cursor: pointer;
+            border-radius: 2px; transition: all 0.15s;
+        }
+        .nav-btn:hover { border-color: var(--c1); color: var(--c1); }
+        .nav-btn.active { border-color: var(--c2); color: var(--c2); background: rgba(57,255,132,0.06); }
+        .footnote { font-size: 8px; color: var(--dim); margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="slide-container" id="slidesContainer">
+    <!-- Slide 0: Título -->
+    <div class="slide active title-slide" data-slide="0">
+        <h1>Verosimilitud ∘ Mayorización</h1>
+        <div class="subtitle">Un cruce formal entre TDA · Juegos · Sonificación · Cópulas · Categorías</div>
+        <div style="margin-top:40px;font-size:12px;color:var(--text);line-height:2">
+            $$ \mathcal{L}(\theta \mid x) \quad \longleftrightarrow \quad \mathbf{p} \succ \mathbf{q} $$
+        </div>
+        <div style="margin-top:30px;display:flex;gap:16px;flex-wrap:wrap">
+            <span style="color:var(--c4)">■ Análisis Topológico de Datos</span>
+            <span style="color:var(--c2)">■ Teoría de Juegos</span>
+            <span style="color:var(--c1)">■ Sonificación de Datos</span>
+            <span style="color:var(--c3)">■ Variedades y Categorías</span>
+            <span style="color:var(--c5)">■ Espacios Métrico‑Estadísticos</span>
+            <span style="color:#ff8c00">■ Funciones Schur‑convexas y Cópulas</span>
+        </div>
+        <div class="author">∑ Stochastic Laboratory · Semillero · Abril 2026</div>
+        <div class="slide-number">1 / 12</div>
+    </div>
+
+    <!-- Slide 1: Definiciones -->
+    <div class="slide" data-slide="1">
+        <h2>1. Definiciones formales</h2>
+        <div class="two-col">
+            <div class="box highlight">
+                <h3>Verosimilitud</h3>
+                <p>$$ \mathcal{L}(\theta \mid x) = f(x \mid \theta) $$</p>
+                <p style="font-size:10px;color:var(--muted)">Función del parámetro \(\theta\) dados los datos \(x\).<br>
+                Mide la compatibilidad del modelo con la evidencia.</p>
+            </div>
+            <div class="box highlight">
+                <h3>Mayorización</h3>
+                <p>$$ \mathbf{x} \succ \mathbf{y} \iff \sum_{i=1}^k x_{(i)} \ge \sum_{i=1}^k y_{(i)} $$</p>
+                <p style="font-size:10px;color:var(--muted)">\(\mathbf{x}\) está más concentrado que \(\mathbf{y}\).<br>
+                El vector uniforme es el mínimo; el vector \((1,0,\dots,0)\) es el máximo.</p>
+            </div>
+        </div>
+        <div class="box" style="margin-top:14px">
+            <strong style="color:var(--c2)">Conexión clave:</strong> Toda función <em>Schur‑convexa</em> preserva el orden de mayorización:
+            $$ \mathbf{x} \succ \mathbf{y} \implies f(\mathbf{x}) \ge f(\mathbf{y}) $$
+            La verosimilitud multinomial es Schur‑cóncava bajo ciertas condiciones.
+        </div>
+        <div class="slide-number">2 / 12</div>
+    </div>
+
+    <!-- Slide 2: TDA -->
+    <div class="slide" data-slide="2">
+        <h2>2. Análisis Topológico de Datos</h2>
+        <div class="two-col">
+            <div>
+                <h3>Filtración de Vietoris‑Rips</h3>
+                <p style="font-size:10px;color:var(--muted)">Nube de puntos → complejos simpliciales a distintas escalas ε.</p>
+                <svg width="200" height="120" viewBox="0 0 200 120">
+                    <circle cx="60" cy="60" r="4" fill="#00c8e0"/><circle cx="80" cy="45" r="4" fill="#00c8e0"/>
+                    <circle cx="120" cy="70" r="4" fill="#b06aff"/><circle cx="140" cy="50" r="4" fill="#b06aff"/>
+                    <circle cx="100" cy="85" r="4" fill="#39ff84"/>
+                    <circle cx="60" cy="60" r="25" fill="none" stroke="#00c8e0" stroke-width="0.8" opacity="0.6"/>
+                    <circle cx="120" cy="70" r="30" fill="none" stroke="#b06aff" stroke-width="0.8" opacity="0.6"/>
+                    <text x="30" y="100" fill="#3d6880" font-size="8">ε₁</text>
+                </svg>
+            </div>
+            <div>
+                <h3>Diagrama de persistencia</h3>
+                <p style="font-size:10px;color:var(--muted)">Nacimiento y muerte de componentes conexas y ciclos.</p>
+                <svg width="180" height="120" viewBox="0 0 180 120">
+                    <line x1="25" y1="95" x2="155" y2="95" stroke="#1e3a52" stroke-width="0.6"/>
+                    <line x1="25" y1="95" x2="25" y2="10" stroke="#1e3a52" stroke-width="0.6"/>
+                    <circle cx="60" cy="40" r="5" fill="#00c8e0"/><circle cx="90" cy="55" r="5" fill="#b06aff"/>
+                    <circle cx="130" cy="30" r="5" fill="#ff5e1a"/>
+                    <line x1="25" y1="95" x2="155" y2="95" stroke="#0c1e2c" stroke-width="0.4" stroke-dasharray="3,3"/>
+                    <text x="100" y="112" fill="#3d6880" font-size="7">ε (escala)</text>
+                </svg>
+            </div>
+        </div>
+        <div class="box">
+            <strong style="color:var(--c4)">Conexión:</strong> La persistencia topológica define un <em>orden parcial</em> sobre las estructuras. Funciones Schur‑convexas sobre los vectores de persistencia (como la entropía) miden la <em>concentración</em> de características topológicas. La verosimilitud de un modelo generativo sobre el complejo es una función de la filtración que respeta este orden.
+        </div>
+        <div class="slide-number">3 / 12</div>
+    </div>
+
+    <!-- Slide 3: Teoría de Juegos -->
+    <div class="slide" data-slide="3">
+        <h2>3. Teoría de Juegos</h2>
+        <div class="two-col">
+            <div class="box">
+                <h3>Estrategias mixtas</h3>
+                <p>$$ \sigma \in \Delta^n = \{\mathbf{p} \mid p_i \ge 0, \sum p_i = 1\} $$</p>
+                <p style="font-size:10px;color:var(--muted)">Una creencia es un vector de probabilidad sobre estados del mundo.</p>
+            </div>
+            <div class="box">
+                <h3>Dominancia estocástica</h3>
+                <p>$$ \mathbf{p} \succ_{FSD} \mathbf{q} \iff \sum_{i=k}^n p_i \ge \sum_{i=k}^n q_i $$</p>
+                <p style="font-size:10px;color:var(--muted)">Es exactamente la <strong>mayorización</strong> para variables ordenadas.</p>
+            </div>
+        </div>
+        <div class="box highlight">
+            <strong style="color:var(--c2)">Juego Bayesiano:</strong> El agente recibe una señal \(s\) y actualiza:
+            $$ \sigma_{\text{post}}(\theta) \propto \sigma_{\text{prior}}(\theta) \cdot \mathcal{L}(s \mid \theta) $$
+            La verosimilitud actúa como un <em>refuerzo estratégico</em>: si los datos son informativos, la posterior <strong>mayoriza</strong> a la previa. El agente gana <em>decisividad</em>.
+        </div>
+        <div class="slide-number">4 / 12</div>
+    </div>
+
+    <!-- Slide 4: Sonificación -->
+    <div class="slide" data-slide="4">
+        <h2>4. Sonificación de Datos</h2>
+        <div class="two-col">
+            <div>
+                <h3>Mapeo espectral</h3>
+                <p style="font-size:10px;color:var(--muted)">Eigenvalores de la matriz de correlación → frecuencias audibles.</p>
+                <svg width="200" height="100" viewBox="0 0 200 100">
+                    <line x1="20" y1="80" x2="180" y2="80" stroke="#1e3a52" stroke-width="0.6"/>
+                    <rect x="40" y="40" width="25" height="40" fill="#00c8e0" opacity="0.7"/>
+                    <rect x="75" y="55" width="25" height="25" fill="#b06aff" opacity="0.7"/>
+                    <rect x="110" y="65" width="25" height="15" fill="#39ff84" opacity="0.7"/>
+                    <rect x="145" y="72" width="25" height="8" fill="#3d6880" opacity="0.5"/>
+                    <text x="30" y="95" fill="#3d6880" font-size="7">λ₁</text>
+                    <text x="65" y="95" fill="#3d6880" font-size="7">λ₂</text>
+                    <text x="100" y="95" fill="#3d6880" font-size="7">λ₃</text>
+                    <text x="135" y="95" fill="#3d6880" font-size="7">λ₄</text>
+                </svg>
+            </div>
+            <div>
+                <h3>Lissajous audible</h3>
+                <p style="font-size:10px;color:var(--muted)">Relación \(\lambda_1/\lambda_2\) → figura de Lissajous en el sonido binaural. Mayor coherencia = figura más compleja.</p>
+                <svg width="120" height="100" viewBox="0 0 120 100">
+                    <ellipse cx="60" cy="50" rx="30" ry="15" fill="none" stroke="#ff5e1a" stroke-width="1.2"/>
+                    <text x="25" y="85" fill="#3d6880" font-size="6">λ₁/λ₂ ≈ 2</text>
+                </svg>
+            </div>
+        </div>
+        <div class="box">
+            <strong style="color:var(--c1)">Conexión:</strong> La mayorización del espectro de eigenvalores (vector \(\lambda\)) controla la <em>disonancia armónica</em>. Un espectro más concentrado (mayorizante) produce sonidos con menos batidos, más consonantes. La verosimilitud de un modelo espectral se maximiza cuando el espectro está más concentrado → la <strong>armonía emerge de la verosimilitud</strong>.
+        </div>
+        <div class="slide-number">5 / 12</div>
+    </div>
+
+    <!-- Slide 5: Variedades y Categorías -->
+    <div class="slide" data-slide="5">
+        <h2>5. Variedades y Categorías</h2>
+        <div class="two-col">
+            <div>
+                <h3>Variedad de información</h3>
+                <p style="font-size:10px;color:var(--muted)">El simplex \(\Delta^{k-1}\) es una variedad Riemanniana con la métrica de Fisher.</p>
+                <svg width="150" height="120" viewBox="0 0 150 120">
+                    <polygon points="75,10 130,110 20,110" fill="none" stroke="#1e3a52" stroke-width="0.8"/>
+                    <circle cx="75" cy="60" r="3" fill="#00c8e0"/>
+                    <circle cx="50" cy="85" r="3" fill="#b06aff"/>
+                    <text x="55" y="100" fill="#3d6880" font-size="7">Simplex \(\Delta^2\)</text>
+                </svg>
+            </div>
+            <div>
+                <h3>Funtor de actualización</h3>
+                <p style="font-size:10px;color:var(--muted)">La regla de Bayes define un funtor entre categorías de medidas de probabilidad.</p>
+                <p>$$ \mathcal{B}: \mathbf{Prob} \times \mathbf{Lik} \to \mathbf{Prob} $$</p>
+            </div>
+        </div>
+        <div class="box highlight">
+            <strong style="color:var(--c5)">Geodésicas y mayorización:</strong> La actualización bayesiana sigue una <em>geodésica</em> en la métrica de Fisher que va desde el vector previo hacia un vector más concentrado (mayorizante). La verosimilitud define la <em>dirección</em> y la <em>curvatura</em> de ese movimiento en la variedad estadística.
+        </div>
+        <div class="slide-number">6 / 12</div>
+    </div>
+
+    <!-- Slide 6: Espacios Métrico-Estadísticos -->
+    <div class="slide" data-slide="6">
+        <h2>6. Espacios Métrico‑Estadísticos</h2>
+        <div class="box">
+            <h3>Distancia de Wasserstein &mdash; Mayorización</h3>
+            <p>La distancia de Wasserstein de orden 1 entre dos vectores de probabilidad es:</p>
+            $$ W_1(\mathbf{p}, \mathbf{q}) = \int_0^1 |F_{\mathbf{p}}^{-1}(t) - F_{\mathbf{q}}^{-1}(t)| \, dt $$
+            <p style="font-size:10px;color:var(--muted)">Donde \(F^{-1}\) es la función cuantil. La mayorización es equivalente a la dominancia en esta métrica.</p>
+        </div>
+        <div class="box">
+            <h3>Experimentos que sí son métrico‑estadísticos</h3>
+            <p style="font-size:10px;color:var(--text)">
+                • <span style="color:var(--c1)">Actualización bayesiana:</span> es una contracción en la métrica de Fisher.<br>
+                • <span style="color:var(--c4)">Agregación de cópulas:</span> la cópula empírica converge en Wasserstein.<br>
+                • <span style="color:var(--c2)">Filtraciones de TDA:</span> los diagramas de persistencia forman un espacio métrico completo con la distancia de bottleneck.
+            </p>
+        </div>
+        <div class="slide-number">7 / 12</div>
+    </div>
+
+    <!-- Slide 7: Schur y Cópulas -->
+    <div class="slide" data-slide="7">
+        <h2>7. Funciones Schur‑convexas ∘ Cópulas</h2>
+        <div class="two-col">
+            <div class="box">
+                <h3>Schur‑convexidad</h3>
+                <p>$$ f \text{ es Schur‑convexa} \iff \mathbf{x} \succ \mathbf{y} \implies f(\mathbf{x}) \ge f(\mathbf{y}) $$</p>
+                <p style="font-size:10px;color:var(--muted)">Ejemplos: varianza, entropía negativa, riesgo de cartera.</p>
+            </div>
+            <div class="box">
+                <h3>Cópulas</h3>
+                <p>$$ C(u_1, \dots, u_d) = P(U_1 \le u_1, \dots, U_d \le u_d) $$</p>
+                <p style="font-size:10px;color:var(--muted)">Acoplan marginales uniformes. La cópula de independencia es \(\Pi(\mathbf{u}) = \prod u_i\).</p>
+            </div>
+        </div>
+        <div class="box highlight">
+            <strong style="color:var(--c3)">El puente:</strong> La cópula de comonoticidad \(M(\mathbf{u}) = \min(u_1, \dots, u_d)\) es la <em>máxima</em> en el orden de concordancia, que es <strong>equivalente a la mayorización</strong> de las funciones de distribución. Una verosimilitud que involucra cópulas mide cuánto se acerca la dependencia observada a la comonoticidad (máxima concentración). Las funciones Schur‑convexas sobre los parámetros de la cópula (como el \(\tau\) de Kendall) crecen con la concentración de la dependencia.
+        </div>
+        <div class="slide-number">8 / 12</div>
+    </div>
+
+    <!-- Slide 8: Teoría de la Decisión -->
+    <div class="slide" data-slide="8">
+        <h2>8. Teoría de la Decisión</h2>
+        <div class="box">
+            <h3>Función de pérdida y riesgo</h3>
+            <p>Un decisor elige una acción \(a\) para minimizar el riesgo esperado:</p>
+            $$ R(a) = \mathbb{E}_{\theta \sim \pi}[\mathcal{L}(\theta, a)] $$
+            <p style="font-size:10px;color:var(--muted)">La distribución posterior \(\pi\) concentra la masa en las regiones de alta verosimilitud.</p>
+        </div>
+        <div class="box">
+            <h3>Schur‑convexidad de la pérdida</h3>
+            <p>Muchas funciones de pérdida (como la varianza del estimador) son <strong>Schur‑convexas</strong>. Cuando la posterior mayoriza a la previa, el riesgo esperado <em>disminuye</em> (si la pérdida es Schur‑cóncava) o <em>aumenta la precisión</em> (si la pérdida es Schur‑convexa).</p>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--c2)">
+            $$ \text{Posterior} \succ \text{Prior} \quad\implies\quad \text{Decisión más concentrada, menor incertidumbre} $$
+        </div>
+        <div class="slide-number">9 / 12</div>
+    </div>
+
+    <!-- Slide 9: Síntesis visual -->
+    <div class="slide" data-slide="9">
+        <h2>9. Síntesis: El diagrama conmutativo</h2>
+        <svg width="700" height="280" viewBox="0 0 700 280">
+            <!-- Nodos -->
+            <rect x="30" y="100" width="130" height="50" rx="6" fill="none" stroke="#00c8e0" stroke-width="1.5"/>
+            <text x="95" y="130" text-anchor="middle" fill="#00c8e0" font-size="10" font-weight="bold">Datos empíricos</text>
+            
+            <rect x="270" y="40" width="140" height="50" rx="6" fill="none" stroke="#b06aff" stroke-width="1.5"/>
+            <text x="340" y="70" text-anchor="middle" fill="#b06aff" font-size="10" font-weight="bold">Verosimilitud</text>
+            
+            <rect x="270" y="160" width="140" height="50" rx="6" fill="none" stroke="#39ff84" stroke-width="1.5"/>
+            <text x="340" y="190" text-anchor="middle" fill="#39ff84" font-size="10" font-weight="bold">Mayorización</text>
+            
+            <rect x="530" y="100" width="140" height="50" rx="6" fill="none" stroke="#ff5e1a" stroke-width="1.5"/>
+            <text x="600" y="130" text-anchor="middle" fill="#ff5e1a" font-size="10" font-weight="bold">Decisión óptima</text>
+
+            <!-- Flechas -->
+            <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#8ab8cc"/></marker></defs>
+            <line x1="160" y1="115" x2="265" y2="60" stroke="#8ab8cc" stroke-width="1" marker-end="url(#arrow)"/>
+            <line x1="160" y1="135" x2="265" y2="185" stroke="#8ab8cc" stroke-width="1" marker-end="url(#arrow)"/>
+            <text x="200" y="55" fill="#3d6880" font-size="7">maximiza</text>
+            <text x="200" y="200" fill="#3d6880" font-size="7">induce</text>
+            
+            <line x1="410" y1="65" x2="525" y2="110" stroke="#8ab8cc" stroke-width="1" marker-end="url(#arrow)"/>
+            <line x1="410" y1="185" x2="525" y2="140" stroke="#8ab8cc" stroke-width="1" marker-end="url(#arrow)"/>
+            
+            <!-- Marcos teóricos -->
+            <text x="340" y="245" text-anchor="middle" fill="#3d6880" font-size="7">TDA · Juegos · Cópulas · Categorías · Sonificación</text>
+            <rect x="170" y="225" width="340" height="22" rx="3" fill="none" stroke="#1e3a52" stroke-width="0.6"/>
+        </svg>
+        <div class="box" style="margin-top:10px">
+            <p style="font-size:11px;color:var(--bright);text-align:center">
+                La verosimilitud es el <strong style="color:var(--c1)">mecanismo</strong> que transforma datos en concentración de creencia.<br>
+                La mayorización es el <strong style="color:var(--c2)">orden</strong> que mide cuánto se ha aprendido.
+            </p>
+        </div>
+        <div class="slide-number">10 / 12</div>
+    </div>
+
+    <!-- Slide 10: Conclusiones -->
+    <div class="slide" data-slide="10">
+        <h2>10. Conclusiones y preguntas abiertas</h2>
+        <div class="box">
+            <p style="font-size:11px;color:var(--text);line-height:2">
+                <span style="color:var(--c1)">✓</span> La verosimilitud y la mayorización están vinculadas por las <strong>funciones Schur‑convexas</strong>.<br>
+                <span style="color:var(--c1)">✓</span> En <strong>TDA</strong>, la persistencia define un orden parcial; la verosimilitud respeta la filtración.<br>
+                <span style="color:var(--c1)">✓</span> En <strong>juegos</strong>, la actualización bayesiana es un refuerzo estratégico que mayoriza creencias.<br>
+                <span style="color:var(--c1)">✓</span> En <strong>sonificación</strong>, el espectro mayorizante produce armonía audible.<br>
+                <span style="color:var(--c1)">✓</span> Las <strong>cópulas</strong> y la métrica de Wasserstein formalizan la concentración.
+            </p>
+        </div>
+        <div class="box highlight">
+            <h3>Pregunta abierta</h3>
+            <p style="color:var(--c5)">¿Podemos construir un funtor entre la categoría de cópulas (con orden de concordancia) y la categoría de estrategias mixtas (con mayorización) donde la verosimilitud sea la transformación natural?</p>
+        </div>
+        <div class="slide-number">11 / 12</div>
+    </div>
+
+    <!-- Slide 11: Gracias -->
+    <div class="slide title-slide" data-slide="11">
+        <h1>Gracias</h1>
+        <div class="subtitle">∑ Stochastic Laboratory · Comunidad ε-aproximada</div>
+        <div style="margin-top:40px;font-size:11px;color:var(--text);line-height:2">
+            $$ \mathcal{L} \longleftrightarrow \succ \longleftrightarrow \text{Armonía} \longleftrightarrow \text{Decisión} $$
+        </div>
+        <div class="author">Discusión abierta · Preguntas · Experimentos futuros</div>
+        <div class="slide-number">12 / 12</div>
+    </div>
+</div>
+
+<!-- Navegación -->
+<div class="nav-bar" id="navBar"></div>
+
+<script>
+    const slides = document.querySelectorAll('.slide');
+    const navBar = document.getElementById('navBar');
+    let currentSlide = 0;
+
+    // Crear botones de navegación
+    slides.forEach((_, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'nav-btn';
+        btn.textContent = (i + 1);
+        btn.onclick = () => goToSlide(i);
+        navBar.appendChild(btn);
+    });
+
+    function goToSlide(n) {
+        slides.forEach(s => s.classList.remove('active'));
+        slides[n].classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach((b, i) => b.classList.toggle('active', i === n));
+        currentSlide = n;
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (currentSlide < slides.length - 1) goToSlide(currentSlide + 1);
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (currentSlide > 0) goToSlide(currentSlide - 1);
+        }
+    });
+
+    goToSlide(0);
+</script>
+</body>
+</html>
